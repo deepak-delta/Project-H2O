@@ -61,6 +61,10 @@ writeFileSync(
       shouldAddHelpers: false,
       supportsResponseStreaming: true,
       maxDuration: 30,
+      // Run next to the database (Supabase ap-south-1, Mumbai). Every API request makes several
+      // database round trips; from Vercel's default region (Washington, iad1) each one crossed
+      // the world. Override with FUNCTION_REGION if the database moves.
+      regions: [process.env.FUNCTION_REGION ?? 'bom1'],
     },
     null,
     2,

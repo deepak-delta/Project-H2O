@@ -1,4 +1,5 @@
 import type { PushConfig } from '@wd/shared';
+import { isInstalled, isIos } from '../../pwa/platform';
 import { api } from '../../services/api';
 
 /**
@@ -10,14 +11,6 @@ import { api } from '../../services/api';
  *  - off / on
  */
 export type PushState = 'unsupported' | 'needs-install' | 'server-off' | 'blocked' | 'off' | 'on';
-
-function isIos(): boolean {
-  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function isInstalled(): boolean {
-  return window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-}
 
 function supported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;

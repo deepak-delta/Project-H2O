@@ -5,6 +5,7 @@ import { lazy, Suspense, type ReactElement, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation } from 'react-router';
 import { AppShell } from './components/layout/AppShell';
 import { OfflineBanner, Toaster, UpdatePrompt } from './components/layout/StatusBanners';
+import { InstallPrompt } from './pwa/InstallPrompt';
 import { Button } from './components/ui/Button';
 import { PageSpinner } from './components/ui/Spinner';
 import { meQueryKey, SessionContext, useMe, useSession } from './features/auth/session';
@@ -204,6 +205,7 @@ export function App() {
       <RouterProvider router={router} />
       <Toaster />
       <UpdatePrompt />
+      <InstallPrompt />
     </PersistQueryClientProvider>
   );
 }

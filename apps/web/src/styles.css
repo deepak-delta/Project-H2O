@@ -44,11 +44,13 @@
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
     background: var(--color-canvas);
+    /* No rubber-band bounce: the page is the scroller, so this must sit on <html> (on <body> iOS
+       ignores it). Without it, pulling past the end drags the screen and opens a gap at the nav. */
+    overscroll-behavior: none;
   }
   body {
     @apply bg-canvas text-ink font-sans antialiased;
     min-height: 100dvh;
-    overscroll-behavior-y: none;
   }
   :focus-visible {
     outline: 2px solid var(--color-brand-600);

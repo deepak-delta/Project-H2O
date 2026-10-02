@@ -26,19 +26,22 @@ export function StoreAccessCard({ store }: { store: StoreDetail }) {
   const disable = useDisableStoreLogin(store.id);
 
   return (
-    <Card className="flex items-center gap-3 p-4">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-        <Smartphone className="size-5" aria-hidden />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="font-medium text-ink">Store app</p>
-        <p className="truncate text-sm text-muted">
-          {store.hasLogin && store.loginPhone ? `On · logs in with ${formatPhone(store.loginPhone)}` : 'Let them order water from their phone'}
-        </p>
+    <Card className="flex flex-col gap-3 p-4">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+          <Smartphone className="size-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-ink">Store app</p>
+          <p className="text-sm text-muted">
+            {store.hasLogin && store.loginPhone ? `On · logs in with ${formatPhone(store.loginPhone)}` : 'Let them order water from their phone'}
+          </p>
+        </div>
       </div>
+      {/* Actions get their own row: beside the text they squeeze the login phone off-screen at phone widths. */}
       {store.hasLogin ? (
-        <div className="flex shrink-0 gap-1">
-          <Button variant="ghost" onClick={() => setEditing('reset')}>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="secondary" onClick={() => setEditing('reset')}>
             Reset PIN
           </Button>
           <Button variant="dangerGhost" onClick={() => setDisabling(true)}>
@@ -46,7 +49,7 @@ export function StoreAccessCard({ store }: { store: StoreDetail }) {
           </Button>
         </div>
       ) : store.status === 'ACTIVE' ? (
-        <Button variant="secondary" onClick={() => setEditing('enable')}>
+        <Button variant="secondary" block onClick={() => setEditing('enable')}>
           Give access
         </Button>
       ) : null}

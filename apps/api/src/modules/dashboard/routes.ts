@@ -1,4 +1,4 @@
-import { fromMinor, zonedDayRange, type DashboardSummary } from '@wd/shared';
+import { fromMinor, LOW_STOCK_FILLED_CANS, zonedDayRange, type DashboardSummary } from '@wd/shared';
 import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from '../../app';
 import { requireSupplier } from '../../lib/auth-context';
@@ -7,8 +7,6 @@ import { decToMinor, sqlSumToMinor } from '../../lib/money';
 import { stockByProduct } from '../inventory/stock';
 
 const OPEN_STATUSES = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'] as const;
-/** Below this many filled cans (all returnable products together) the dashboard warns. */
-const LOW_STOCK_THRESHOLD = 10;
 
 export function registerDashboardRoutes(app: FastifyInstance, { db }: AppDeps): void {
   app.get('/api/dashboard', async (req): Promise<DashboardSummary> => {
@@ -106,7 +104,7 @@ export function registerDashboardRoutes(app: FastifyInstance, { db }: AppDeps): 
         outstanding: fromMinor(sqlSumToMinor(outstandingRows[0]?.outstanding)),
         storesOwing: Number(outstandingRows[0]?.stores ?? 0),
       },
-      inventory: { ...inventory, lowStock: products.length > 0 && inventory.filled < LOW_STOCK_THRESHOLD },
+      inventory: { ...inventory, lowStock: products.length > 0 && inventory.filled < LOW_STOCK_FILLED_CANS },
       stockWarnings: warnings,
     };
   });

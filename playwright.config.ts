@@ -1,4 +1,5 @@
 import { defineConfig, type PlaywrightTestConfig } from '@playwright/test';
+import webpush from 'web-push';
 
 /**
  * End-to-end tests run the production build (service worker included) against a real API and
@@ -6,6 +7,8 @@ import { defineConfig, type PlaywrightTestConfig } from '@playwright/test';
  */
 export const E2E_DATABASE_URL = process.env.E2E_DATABASE_URL ?? 'postgresql://postgres@localhost:54329/wd_e2e';
 const API_PORT = 3101;
+// Fresh push keys per run: nothing secret is stored in the repo.
+const vapid = webpush.generateVAPIDKeys();
 const WEB_PORT = 4173;
 export const BASE_URL = `http://localhost:${WEB_PORT}`;
 
@@ -35,7 +38,7 @@ export default defineConfig({
     // The two critical journeys at every target phone width.
     ...[360, 375, 390, 430].map((width) => ({ name: `phone-${width}`, testMatch: /journeys\.spec\.ts/, use: phone(width) })),
     // Biometrics, real offline mode and accessibility once, at a common width.
-    { name: 'features-390', testMatch: /(biometric|offline|a11y|csp)\.spec\.ts/, use: phone(390) },
+    { name: 'features-390', testMatch: /(biometric|offline|a11y|csp|notifications)\.spec\.ts/, use: phone(390) },
   ],
   webServer: [
     {
@@ -50,6 +53,9 @@ export default defineConfig({
         LOG_LEVEL: 'warn',
         PIN_PEPPER: 'e2e-only-pepper-not-a-secret',
         RATE_LIMIT_PER_MINUTE: '100000',
+        VAPID_PUBLIC_KEY: vapid.publicKey,
+        VAPID_PRIVATE_KEY: vapid.privateKey,
+        VAPID_SUBJECT: 'mailto:e2e@example.com',
       },
     },
     {

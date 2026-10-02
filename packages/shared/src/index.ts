@@ -10,3 +10,4 @@ export * from './schemas/sales';
 export * from './schemas/inventory';
 export * from './schemas/orders';
 export * from './schemas/reports';
+export * from './schemas/push';

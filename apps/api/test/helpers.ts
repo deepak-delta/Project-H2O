@@ -3,6 +3,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../src/app';
 import { loadEnv } from '../src/env';
 import { createDb, type Db } from '../src/lib/db';
+import type { PushSender } from '../src/lib/push';
 
 try {
   process.loadEnvFile(path.resolve(import.meta.dirname, '../../../.env'));
@@ -17,12 +18,16 @@ export interface TestContext {
   db: Db;
 }
 
-export async function createTestContext(overrides: Record<string, string> = {}): Promise<TestContext> {
+export async function createTestContext(
+  overrides: Record<string, string> = {},
+  options: { pushSender?: PushSender | null } = {},
+): Promise<TestContext> {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) throw new Error('TEST_DATABASE_URL is not set');
   const env = loadEnv({ ...process.env, NODE_ENV: 'test', DATABASE_URL: url, LOG_LEVEL: 'silent', RATE_LIMIT_PER_MINUTE: '100000', ...overrides });
   const db = createDb(url, { maxConnections: 3 });
-  const app = await buildApp({ db, env, secureCookies: false });
+  // Push is off in tests unless a test supplies its own (fake) sender.
+  const app = await buildApp({ db, env, secureCookies: false, pushSender: options.pushSender ?? null });
   return { app, db };
 }
 

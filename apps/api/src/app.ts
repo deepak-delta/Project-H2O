@@ -4,6 +4,9 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Env } from './env';
 import type { Db } from './lib/db';
+import { createWebPushSender, type PushSender } from './lib/push';
+import { Notifier } from './modules/notifications/notifier';
+import { registerPushRoutes } from './modules/notifications/routes';
 import { registerAuthRoutes } from './modules/auth/routes';
 import { registerCashFlowRoutes } from './modules/cashflow/routes';
 import { registerDashboardRoutes } from './modules/dashboard/routes';
@@ -22,6 +25,13 @@ export interface AppDeps {
   env: Env;
   /** Secure cookies everywhere except plain-http local development and tests. */
   secureCookies: boolean;
+  /** Override the push sender (tests); `null` disables push. Default: web-push if configured. */
+  pushSender?: PushSender | null;
+}
+
+/** What route modules receive: the app's dependencies plus shared services built from them. */
+export interface Services extends AppDeps {
+  notifier: Notifier;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -50,20 +60,26 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     keyGenerator: (req) => req.ip,
   });
 
+  const services: Services = {
+    ...deps,
+    notifier: new Notifier(deps.db, deps.pushSender === undefined ? createWebPushSender(deps.env) : deps.pushSender, app.log),
+  };
+
   registerErrorHandling(app);
   registerSecurityHooks(app, deps.db, deps.secureCookies);
 
   app.get('/api/health', () => ({ ok: true }));
-  registerAuthRoutes(app, deps);
-  registerProductRoutes(app, deps);
-  registerStoreRoutes(app, deps);
-  registerInventoryRoutes(app, deps);
-  registerOrderRoutes(app, deps);
-  registerPaymentRoutes(app, deps);
-  registerDashboardRoutes(app, deps);
-  registerStoreAppRoutes(app, deps);
-  registerCashFlowRoutes(app, deps);
-  registerReportRoutes(app, deps);
+  registerAuthRoutes(app, services);
+  registerProductRoutes(app, services);
+  registerStoreRoutes(app, services);
+  registerInventoryRoutes(app, services);
+  registerOrderRoutes(app, services);
+  registerPaymentRoutes(app, services);
+  registerDashboardRoutes(app, services);
+  registerStoreAppRoutes(app, services);
+  registerCashFlowRoutes(app, services);
+  registerReportRoutes(app, services);
+  registerPushRoutes(app, services);
 
   return app;
 }

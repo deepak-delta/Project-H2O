@@ -153,17 +153,18 @@ export async function changeOrderStatus(
   auth: SupplierContext,
   orderId: string,
   status: 'CONFIRMED' | 'OUT_FOR_DELIVERY',
-): Promise<OrderDto> {
-  await db.$transaction(async (tx) => {
+): Promise<{ order: OrderDto; changed: boolean }> {
+  const changed = await db.$transaction(async (tx) => {
     await lockOrder(tx, orderId);
     const order = await tx.order.findFirst({ where: { id: orderId, supplierId: auth.supplierId } });
     if (!order) throw notFound('Order');
     const allowed = status === 'CONFIRMED' ? ['PENDING'] : ['PENDING', 'CONFIRMED'];
-    if (order.status === status) return;
+    if (order.status === status) return false;
     if (!allowed.includes(order.status)) throw conflict('This order can no longer change to that status.');
     await tx.order.update({ where: { id: orderId }, data: { status } });
+    return true;
   });
-  return loadOrderDto(db, { supplierId: auth.supplierId }, orderId);
+  return { order: await loadOrderDto(db, { supplierId: auth.supplierId }, orderId), changed };
 }
 
 /**

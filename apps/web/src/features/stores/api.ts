@@ -172,3 +172,8 @@ export function useDisableStoreLogin(id: string) {
     onSuccess: (store) => queryClient.setQueryData(qk.store(id), store),
   });
 }
+
+/** Push a payment reminder to the store's phone; `sent` is 0 when it has no notifications on. */
+export function useSendReminder(storeId: string) {
+  return useMutation({ mutationFn: () => api.post<{ sent: number }>(`/stores/${storeId}/remind`) });
+}

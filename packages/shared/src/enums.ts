@@ -72,3 +72,6 @@ export type StoreStatus = (typeof STORE_STATUSES)[number];
 
 export const SYNC_STATES = ['PENDING', 'SYNCING', 'SYNCED', 'FAILED'] as const;
 export type SyncState = (typeof SYNC_STATES)[number];
+
+/** Below this many filled cans (all returnable products together) the supplier is warned. */
+export const LOW_STOCK_FILLED_CANS = 10;

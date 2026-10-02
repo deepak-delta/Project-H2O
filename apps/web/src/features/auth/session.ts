@@ -70,7 +70,11 @@ export function useSignup() {
 export function useLogout() {
   const replaceSession = useReplaceSession();
   return useMutation({
-    mutationFn: () => api.post<void>('/auth/logout'),
+    mutationFn: async () => {
+      // A shared phone should stop getting this person's notifications.
+      await (await import('../notifications/push')).disablePush().catch(() => undefined);
+      await api.post<void>('/auth/logout');
+    },
     onSettled: () => {
       replaceSession(null);
       // The saved copy of business data leaves the phone with the user (the outbox stays).

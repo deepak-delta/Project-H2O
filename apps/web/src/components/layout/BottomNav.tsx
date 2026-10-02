@@ -1,6 +1,5 @@
 import type { Role } from '@wd/shared';
 import {
-  Boxes,
   ClipboardList,
   Ellipsis,
   House,
@@ -10,23 +9,31 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
-import { Link, NavLink } from 'react-router';
+import { Link, NavLink, useLocation } from 'react-router';
 import { cn } from '../../utils/cn';
 
 interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
+  /** Screens opened from this tab, so it stays highlighted there too. */
+  activeFor?: string[];
 }
 
 const SUPPLIER_LEFT: NavItem[] = [
   { to: '/', label: 'Home', icon: House },
   { to: '/orders', label: 'Orders', icon: ClipboardList },
 ];
+// Two tabs either side keeps "New order" in the exact centre; Inventory lives under More
+// (and the dashboard's Cans card links straight to it).
 const SUPPLIER_RIGHT: NavItem[] = [
   { to: '/stores', label: 'Stores', icon: Store },
-  { to: '/inventory', label: 'Inventory', icon: Boxes },
-  { to: '/more', label: 'More', icon: Ellipsis },
+  {
+    to: '/more',
+    label: 'More',
+    icon: Ellipsis,
+    activeFor: ['/inventory', '/reports', '/payments', '/cashflow', '/products', '/settings'],
+  },
 ];
 const STORE_ITEMS: NavItem[] = [
   { to: '/', label: 'Home', icon: House },
@@ -37,21 +44,24 @@ const STORE_ITEMS: NavItem[] = [
 
 function Tab({ item }: { item: NavItem }) {
   const Icon = item.icon;
+  const { pathname } = useLocation();
+  const viaChild = item.activeFor?.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ?? false;
   return (
     <NavLink
       to={item.to}
       end={item.to === '/'}
-      className={({ isActive }) =>
-        cn(
+      className={({ isActive: onTab }) => {
+        const isActive = onTab || viaChild;
+        return cn(
           'flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors',
           'lg:min-h-11 lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-[15px]',
           isActive ? 'text-brand-700 lg:bg-brand-50' : 'text-muted hover:text-ink-2',
-        )
-      }
+        );
+      }}
     >
       {({ isActive }) => (
         <>
-          <Icon className="size-6 lg:size-5" strokeWidth={isActive ? 2.25 : 1.75} aria-hidden />
+          <Icon className="size-6 lg:size-5" strokeWidth={isActive || viaChild ? 2.25 : 1.75} aria-hidden />
           <span>{item.label}</span>
         </>
       )}

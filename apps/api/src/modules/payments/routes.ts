@@ -1,7 +1,8 @@
 import { fromMinor, recordPaymentSchema, reversePaymentSchema, toMinor, zonedDayRangeForKey, type PaymentDto } from '@wd/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { AppDeps } from '../../app';
+import type { Services } from '../../app';
+import * as notify from '../notifications/events';
 import { ownedBy, requireAuth, requireSupplier } from '../../lib/auth-context';
 import { getBusinessSettings } from '../../lib/business';
 import { notFound } from '../../lib/errors';
@@ -38,7 +39,7 @@ export function toPaymentDto(p: PaymentRow): PaymentDto {
   };
 }
 
-export function registerPaymentRoutes(app: FastifyInstance, { db }: AppDeps): void {
+export function registerPaymentRoutes(app: FastifyInstance, { db, notifier }: Services): void {
   /** Money received against a store's balance (not tied to a particular order). */
   app.post('/api/payments', async (req, reply) => {
     const auth = requireSupplier(req);
@@ -71,6 +72,9 @@ export function registerPaymentRoutes(app: FastifyInstance, { db }: AppDeps): vo
     );
 
     const balance = await storeBalanceMinor(db, auth.supplierId, store.id);
+    if (!replayed) {
+      await notify.paymentRecorded(db, notifier, auth.supplierId, store.id, decToString(result.amount), fromMinor(balance));
+    }
     return reply
       .status(replayed ? 200 : 201)
       .send({ payment: toPaymentDto(result), storeBalance: fromMinor(balance), replayed });
@@ -84,6 +88,7 @@ export function registerPaymentRoutes(app: FastifyInstance, { db }: AppDeps): vo
     await db.$transaction((tx) => reversePaymentInTx(tx, auth, id, reason));
     const payment = await db.payment.findUniqueOrThrow({ where: { id }, include: paymentInclude });
     const balance = await storeBalanceMinor(db, auth.supplierId, payment.storeId);
+    await notify.paymentReversed(db, notifier, auth.supplierId, payment.storeId, decToString(payment.amount), fromMinor(balance));
     return { payment: toPaymentDto(payment), storeBalance: fromMinor(balance) };
   });
 

@@ -47,7 +47,7 @@ export default function InventoryPage() {
 
   return (
     <>
-      <PageHeader title="Inventory" />
+      <PageHeader title="Inventory" back="/more" />
       <PageBody>
         {stock.isPending ? (
           <Skeleton className="h-48 w-full" />

@@ -39,6 +39,7 @@ const StoreHomePage = lazy(() => import('./pages/store/HomePage'));
 const AccountPage = lazy(() => import('./pages/store/AccountPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const SyncPage = lazy(() => import('./features/offline/SyncPage'));
+const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'));
 
 /** Data kept on the phone for offline use: needed to open the app and record deliveries. */
 const OFFLINE_QUERY_ROOTS = new Set(['me', 'products', 'stores', 'orders', 'store-home', 'dashboard', 'inventory', 'payments']);
@@ -165,6 +166,7 @@ const router = createBrowserRouter([
           { path: 'statement', element: <ByRole store={<StatementPage />} /> },
           { path: 'settings/security', element: <SecurityPage /> },
           { path: 'sync', element: <SyncPage /> },
+          { path: 'settings/notifications', element: <NotificationsPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

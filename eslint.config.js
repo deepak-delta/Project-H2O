@@ -14,6 +14,8 @@ export default tseslint.config(
       'scripts/**',
       '**/*.config.{js,ts}',
       'api/**',
+      // Plain service-worker script served as-is.
+      'apps/web/public/**',
     ],
   },
   js.configs.recommended,

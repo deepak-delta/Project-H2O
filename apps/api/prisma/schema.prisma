@@ -136,10 +136,11 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  supplier    Supplier             @relation(fields: [supplierId], references: [id])
-  store       Store?               @relation(fields: [storeId], references: [id])
-  sessions    Session[]
-  credentials WebAuthnCredential[]
+  supplier          Supplier             @relation(fields: [supplierId], references: [id])
+  store             Store?               @relation(fields: [storeId], references: [id])
+  sessions          Session[]
+  credentials       WebAuthnCredential[]
+  pushSubscriptions PushSubscription[]
 
   storesCreated    Store[]             @relation("StoreCreatedBy")
   productsCreated  Product[]           @relation("ProductCreatedBy")
@@ -180,6 +181,23 @@ model WebAuthnCredential {
   deviceName   String
   createdAt    DateTime  @default(now())
   lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// One per phone/browser that turned on notifications. Removed when the push service
+/// reports it gone (410/404), on logout from that device, or when the user's access ends.
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

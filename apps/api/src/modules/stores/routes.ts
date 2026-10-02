@@ -13,7 +13,8 @@ import {
 } from '@wd/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { AppDeps } from '../../app';
+import type { Services } from '../../app';
+import * as notify from '../notifications/events';
 import { requireAuth, requireSupplier, type AuthContext } from '../../lib/auth-context';
 import { audit } from '../../lib/audit';
 import type { Db } from '../../lib/db';
@@ -166,7 +167,7 @@ async function assertStoreAccess(db: Db, auth: AuthContext, storeId: string): Pr
   if (!store) throw notFound('Store');
 }
 
-export function registerStoreRoutes(app: FastifyInstance, { db, env }: AppDeps): void {
+export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }: Services): void {
   app.get('/api/stores', async (req) => {
     const auth = requireSupplier(req);
     return listStores(db, auth.supplierId, parse(listQuerySchema, req.query));
@@ -269,6 +270,8 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env }: AppDeps):
       if (user && status === 'INACTIVE') {
         await tx.user.update({ where: { id: user.id }, data: { active: false } });
         await tx.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+        // Their phones stop receiving this business's notifications too.
+        await tx.pushSubscription.deleteMany({ where: { userId: user.id } });
       }
       await audit(tx, {
         supplierId: auth.supplierId,
@@ -440,6 +443,8 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env }: AppDeps):
         });
         // A new PIN signs the store out everywhere.
         await tx.session.updateMany({ where: { userId: store.loginUser.id, revokedAt: null }, data: { revokedAt: new Date() } });
+        // Their phones stop receiving this business's notifications too.
+        await tx.pushSubscription.deleteMany({ where: { userId: store.loginUser.id } });
       } else {
         await tx.user.create({
           data: {
@@ -474,6 +479,8 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env }: AppDeps):
       await db.$transaction(async (tx) => {
         await tx.user.update({ where: { id: userId }, data: { active: false } });
         await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+        // Their phones stop receiving this business's notifications too.
+        await tx.pushSubscription.deleteMany({ where: { userId: userId } });
         await audit(tx, {
           supplierId: auth.supplierId,
           actorId: auth.userId,
@@ -484,5 +491,17 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env }: AppDeps):
       });
     }
     return loadStoreDetail(db, auth.supplierId, id);
+  });
+
+  /** Push a payment reminder to the store's phone (if it has the app with notifications on). */
+  app.post('/api/stores/:id/remind', async (req) => {
+    const auth = requireSupplier(req);
+    const { id } = parse(z.object({ id: z.string() }), req.params);
+    const store = await db.store.findFirst({ where: { id, supplierId: auth.supplierId }, select: { id: true } });
+    if (!store) throw notFound('Store');
+    const balance = await storeBalanceMinor(db, auth.supplierId, id);
+    if (balance <= 0) throw validationError("This store doesn't owe anything right now.");
+    const sent = await notify.paymentReminder(db, notifier, auth.supplierId, id, fromMinor(balance));
+    return { sent };
   });
 }

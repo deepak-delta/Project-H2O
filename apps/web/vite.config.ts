@@ -43,6 +43,8 @@ export default defineConfig({
         // API responses hold private data and are never cached by the service worker.
         navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
+        // Push and notification-tap handlers live in a small hand-written script.
+        importScripts: ['push-sw.js'],
       },
       devOptions: { enabled: false },
     }),

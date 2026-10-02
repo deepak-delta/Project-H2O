@@ -1,5 +1,5 @@
 import { formatPhone } from '@wd/shared';
-import { ShieldCheck } from 'lucide-react';
+import { Bell, ShieldCheck } from 'lucide-react';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
 import { Card, ListCard, ListRow } from '../../components/ui/Card';
 import { LogoutButton } from '../../features/auth/LogoutButton';
@@ -17,6 +17,12 @@ export default function AccountPage() {
           <p className="mt-2 text-sm text-muted">Supplier: {business.businessName}</p>
         </Card>
         <ListCard>
+          <ListRow
+            to="/settings/notifications"
+            title="Notifications"
+            subtitle="Orders, deliveries and payments"
+            leading={<Bell className="size-5 text-brand-700" aria-hidden />}
+          />
           <ListRow
             to="/settings/security"
             title="Login & security"

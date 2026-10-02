@@ -1,5 +1,5 @@
-import { formatPhone, type LedgerType, type MovementType, type StoreDetail } from '@wd/shared';
-import { CloudUpload, Pencil, Phone, Plus, Undo2, Wallet } from 'lucide-react';
+import { formatPhone, toMinor, type LedgerType, type MovementType, type StoreDetail } from '@wd/shared';
+import { Bell, CloudUpload, Pencil, Phone, Plus, Undo2, Wallet } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
@@ -17,7 +17,7 @@ import { useMoney, useTimezone } from '../../hooks/useMoney';
 import { errorMessage } from '../../services/api';
 import { toast } from '../../stores/toast';
 import { formatDate, formatDateTime } from '../../utils/format';
-import { useSetStoreStatus, useStore, useStoreCans, useStoreLedger } from './api';
+import { useSendReminder, useSetStoreStatus, useStore, useStoreCans, useStoreLedger } from './api';
 import { usePendingForStore } from '../../offline/engine';
 import { StoreAccessCard } from './StoreAccess';
 import { CollectEmptiesSheet, RecordPaymentSheet } from './StoreSheets';
@@ -153,6 +153,8 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
           {store.phone ? <ActionButton icon={<Phone className="size-5" />} label="Call" href={`tel:${store.phone}`} /> : null}
         </div>
 
+        {store.hasLogin && toMinor(store.balance) > 0 ? <ReminderButton store={store} /> : null}
+
         <Segmented
           label="History"
           value={tab}
@@ -163,6 +165,7 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
           ]}
         />
         {tab === 'money' ? <MoneyHistory storeId={store.id} /> : <CanHistory storeId={store.id} />}
+
 
         <StoreAccessCard store={store} />
 
@@ -275,5 +278,29 @@ export function CanHistory({ storeId }: { storeId: string }) {
       </ListCard>
       <LoadMore hasMore={Boolean(cans.hasNextPage)} loading={cans.isFetchingNextPage} onLoad={() => void cans.fetchNextPage()} />
     </>
+  );
+}
+
+function ReminderButton({ store }: { store: StoreDetail }) {
+  const remind = useSendReminder(store.id);
+  const format = useMoney();
+  return (
+    <Button
+      variant="secondary"
+      block
+      icon={<Bell className="size-5" />}
+      loading={remind.isPending}
+      onClick={() =>
+        remind.mutate(undefined, {
+          onSuccess: ({ sent }) =>
+            sent > 0
+              ? toast.success(`Reminder for ${format(store.balance)} sent to ${store.name}.`)
+              : toast.info(`${store.name} hasn't turned on notifications. Try calling or WhatsApp.`),
+          onError: (err) => toast.error(errorMessage(err)),
+        })
+      }
+    >
+      Send payment reminder
+    </Button>
   );
 }

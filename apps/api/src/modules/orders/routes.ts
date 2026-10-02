@@ -9,7 +9,8 @@ import {
 } from '@wd/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { AppDeps } from '../../app';
+import type { Services } from '../../app';
+import * as notify from '../notifications/events';
 import { ownedBy, requireAuth, requireSupplier } from '../../lib/auth-context';
 import { getBusinessSettings } from '../../lib/business';
 import { decodeCursor, olderThan, toPage } from '../../lib/pagination';
@@ -22,12 +23,15 @@ import { quickSale } from './quick-sale';
 const OPEN_STATUSES = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'] as const;
 const idParams = z.object({ id: z.string().min(1) });
 
-export function registerOrderRoutes(app: FastifyInstance, { db }: AppDeps): void {
+export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Services): void {
   /** Create + deliver + collect payment in one step (supplier's main flow). */
   app.post('/api/orders/quick-sale', async (req, reply) => {
     const auth = requireSupplier(req);
     const input = parse(quickSaleSchema, req.body);
     const result = await quickSale(db, auth, input);
+    if (!result.replayed) {
+      await notify.orderDelivered(db, notifier, auth.supplierId, result.order, result.storeBalance, input.items);
+    }
     return reply.status(result.replayed ? 200 : 201).send(result);
   });
 
@@ -83,6 +87,7 @@ export function registerOrderRoutes(app: FastifyInstance, { db }: AppDeps): void
     const auth = requireAuth(req);
     const input = parse(placeOrderSchema, req.body);
     const { order, replayed } = await placeOrder(db, auth, input);
+    if (!replayed && auth.role === 'STORE') await notify.orderPlaced(db, notifier, auth.supplierId, order);
     return reply.status(replayed ? 200 : 201).send(order);
   });
 
@@ -90,7 +95,9 @@ export function registerOrderRoutes(app: FastifyInstance, { db }: AppDeps): void
     const auth = requireSupplier(req);
     const { id } = parse(idParams, req.params);
     const { status } = parse(orderStatusChangeSchema, req.body);
-    return changeOrderStatus(db, auth, id, status);
+    const { order, changed } = await changeOrderStatus(db, auth, id, status);
+    if (changed) await notify.orderStatusChanged(notifier, order);
+    return order;
   });
 
   /** Deliver an open order, fully or partly. */
@@ -99,6 +106,9 @@ export function registerOrderRoutes(app: FastifyInstance, { db }: AppDeps): void
     const { id } = parse(idParams, req.params);
     const input = parse(deliverOrderSchema, req.body);
     const result = await deliverOrder(db, auth, id, input);
+    if (!result.replayed) {
+      await notify.orderDelivered(db, notifier, auth.supplierId, result.order, result.storeBalance, input.items);
+    }
     return reply.status(result.replayed ? 200 : 201).send(result);
   });
 
@@ -106,6 +116,8 @@ export function registerOrderRoutes(app: FastifyInstance, { db }: AppDeps): void
     const auth = requireAuth(req);
     const { id } = parse(idParams, req.params);
     const input = parse(cancelOrderSchema, req.body ?? {});
-    return cancelOrder(db, auth, id, input);
+    const order = await cancelOrder(db, auth, id, input);
+    await notify.orderCancelled(notifier, auth.supplierId, order, auth.role === 'STORE');
+    return order;
   });
 }

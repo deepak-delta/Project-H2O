@@ -15,6 +15,14 @@ const envSchema = z.object({
    * floods and scripted abuse; PIN guessing has its own database-backed limits.
    */
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(10).default(300),
+  /**
+   * Web Push (VAPID) keys. Generate once with `npx web-push generate-vapid-keys`.
+   * Without them, notifications are simply switched off.
+   */
+  VAPID_PUBLIC_KEY: z.string().min(20).optional(),
+  VAPID_PRIVATE_KEY: z.string().min(20).optional(),
+  /** Contact for push services, e.g. mailto:owner@example.com */
+  VAPID_SUBJECT: z.string().default('mailto:support@example.com'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 

@@ -21,7 +21,7 @@ export const useToasts = create<ToastState>((set, get) => ({
   show: (message, tone = 'success') => {
     const id = nextId++;
     set({ toasts: [...get().toasts.slice(-2), { id, message, tone }] });
-    window.setTimeout(() => get().dismiss(id), tone === 'error' ? 6000 : 3000);
+    window.setTimeout(() => get().dismiss(id), tone === 'success' ? 3000 : 6000);
   },
   dismiss: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
 }));

@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. Calm, business-like: one accent (deep water teal), neutral surfaces,
+ * subtle borders, restrained shadows. Semantic colours never carry meaning alone —
+ * every status also has text or an icon.
+ */
+@theme {
+  --font-sans:
+    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue',
+    Arial, sans-serif;
+
+  --color-brand-50: #eef8fa;
+  --color-brand-100: #d5eef3;
+  --color-brand-200: #aedde7;
+  --color-brand-500: #13839c;
+  --color-brand-600: #0e6f85;
+  --color-brand-700: #0b5f73;
+  --color-brand-800: #0a4d5d;
+
+  --color-surface: #ffffff;
+  --color-canvas: #f6f7f9;
+  --color-line: #e4e7ec;
+  --color-line-strong: #cfd4dc;
+  --color-ink: #111827;
+  --color-ink-2: #374151;
+  /* Dark enough for 4.5:1 contrast on the tinted canvas and chip backgrounds, not just white. */
+  --color-muted: #59616d;
+
+  --color-ok: #15803d;
+  --color-ok-bg: #ecfdf3;
+  --color-warn: #b45309;
+  --color-warn-bg: #fffbeb;
+  --color-bad: #b42318;
+  --color-bad-bg: #fef3f2;
+
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04);
+  --shadow-bar: 0 -1px 0 rgb(16 24 40 / 0.06);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    background: var(--color-canvas);
+  }
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+  /* Large tap targets without layout jumps; no double-tap zoom delay. */
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility px-safe {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}

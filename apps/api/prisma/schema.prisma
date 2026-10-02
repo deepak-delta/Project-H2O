@@ -1,0 +1,503 @@
+// Water Delivery — domain model.
+//
+// Invariants (see CLAUDE.md):
+//  * Money is NUMERIC(12,2); never floats.
+//  * Store balances are SUM(LedgerEntry.amount); positive = store owes the supplier.
+//  * Stock and per-store can balances are SUM(InventoryMovement.*Delta). Never edited in place.
+//  * Financial rows are never deleted; corrections are REVERSAL rows.
+//  * Every business row carries supplierId and every query is scoped by it.
+//  * Mutations that may be retried carry a client-generated clientId (idempotency key).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPPLIER
+  STORE
+}
+
+enum StoreStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING
+  CONFIRMED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  PARTIALLY_DELIVERED
+  CANCELLED
+}
+
+enum OrderSource {
+  SUPPLIER
+  STORE
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+  OTHER
+}
+
+enum LedgerType {
+  SALE
+  PAYMENT
+  CREDIT_ADJUSTMENT
+  REFUND
+  DISCOUNT
+  OPENING_BALANCE
+  REVERSAL
+}
+
+enum MovementType {
+  OPENING
+  PURCHASE
+  REFILL
+  DELIVERY
+  RETURN
+  DAMAGE
+  LOSS
+  ADJUSTMENT
+  REVERSAL
+}
+
+enum CashFlowType {
+  INCOME
+  EXPENSE
+}
+
+enum CashFlowCategory {
+  WATER_SALE
+  DEPOSIT
+  CREDIT_RECOVERY
+  OTHER_INCOME
+  FUEL
+  WATER_PURCHASE
+  VEHICLE
+  SALARY
+  MAINTENANCE
+  ELECTRICITY
+  MISC
+}
+
+enum ChallengePurpose {
+  REGISTER
+  LOGIN
+}
+
+// ─── Business & identity ──────────────────────────────────────────────────────
+
+model Supplier {
+  id              String   @id @default(cuid())
+  businessName    String
+  ownerName       String
+  phone           String
+  email           String?
+  address         String?
+  currency        String   @default("INR") @db.VarChar(3)
+  timezone        String   @default("Asia/Kolkata")
+  nextOrderNumber Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users      User[]
+  stores     Store[]
+  products   Product[]
+  orders     Order[]
+  deliveries Delivery[]
+  movements  InventoryMovement[]
+  ledger     LedgerEntry[]
+  payments   Payment[]
+  cashFlow   CashFlowEntry[]
+  auditLogs  AuditLog[]
+}
+
+model User {
+  id                String    @id @default(cuid())
+  supplierId        String
+  storeId           String?   @unique
+  role              Role
+  name              String
+  phone             String    @unique
+  pinHash           String
+  failedPinAttempts Int       @default(0)
+  lockedUntil       DateTime?
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  supplier    Supplier             @relation(fields: [supplierId], references: [id])
+  store       Store?               @relation(fields: [storeId], references: [id])
+  sessions    Session[]
+  credentials WebAuthnCredential[]
+
+  storesCreated    Store[]             @relation("StoreCreatedBy")
+  productsCreated  Product[]           @relation("ProductCreatedBy")
+  ordersCreated    Order[]             @relation("OrderCreatedBy")
+  deliveriesMade   Delivery[]          @relation("DeliveryBy")
+  movementsCreated InventoryMovement[] @relation("MovementCreatedBy")
+  ledgerCreated    LedgerEntry[]       @relation("LedgerCreatedBy")
+  paymentsCreated  Payment[]           @relation("PaymentCreatedBy")
+  paymentsReversed Payment[]           @relation("PaymentReversedBy")
+  cashFlowCreated  CashFlowEntry[]     @relation("CashFlowCreatedBy")
+  auditLogs        AuditLog[]
+
+  @@index([supplierId])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  userAgent  String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastUsedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WebAuthnCredential {
+  id           String    @id @default(cuid())
+  userId       String
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  transports   String[]
+  deviceName   String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuthChallenge {
+  id        String           @id @default(cuid())
+  challenge String           @unique
+  userId    String?
+  purpose   ChallengePurpose
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  phone     String?
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+  @@index([phone, createdAt])
+}
+
+// ─── Customers & catalogue ────────────────────────────────────────────────────
+
+model Store {
+  id          String      @id @default(cuid())
+  supplierId  String
+  name        String
+  ownerName   String?
+  phone       String?
+  address     String?
+  latitude    Decimal?    @db.Decimal(9, 6)
+  longitude   Decimal?    @db.Decimal(9, 6)
+  creditLimit Decimal?    @db.Decimal(12, 2)
+  status      StoreStatus @default(ACTIVE)
+  notes       String?
+  createdById String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  supplier   Supplier            @relation(fields: [supplierId], references: [id])
+  createdBy  User                @relation("StoreCreatedBy", fields: [createdById], references: [id])
+  loginUser  User?
+  orders     Order[]
+  deliveries Delivery[]
+  movements  InventoryMovement[]
+  ledger     LedgerEntry[]
+  payments   Payment[]
+
+  @@index([supplierId, status, name])
+  @@index([supplierId, phone])
+}
+
+model Product {
+  id             String   @id @default(cuid())
+  supplierId     String
+  name           String
+  capacityLiters Decimal? @db.Decimal(8, 2)
+  sellingPrice   Decimal  @db.Decimal(12, 2)
+  depositAmount  Decimal  @default(0) @db.Decimal(12, 2)
+  /// Reusable containers (20L cans) are tracked with customers; bottled crates are not.
+  isReturnable   Boolean  @default(true)
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  supplier      Supplier            @relation(fields: [supplierId], references: [id])
+  createdBy     User                @relation("ProductCreatedBy", fields: [createdById], references: [id])
+  orderItems    OrderItem[]
+  deliveryItems DeliveryItem[]
+  movements     InventoryMovement[]
+
+  @@index([supplierId, active])
+}
+
+// ─── Inventory (stock + can ledger in one table) ──────────────────────────────
+
+model InventoryMovement {
+  id                 String       @id @default(cuid())
+  supplierId         String
+  productId          String
+  type               MovementType
+  filledDelta        Int          @default(0)
+  emptyDelta         Int          @default(0)
+  withCustomersDelta Int          @default(0)
+  damagedDelta       Int          @default(0)
+  storeId            String?
+  orderId            String?
+  deliveryId         String?
+  reversesId         String?      @unique
+  reason             String?
+  clientId           String?
+  occurredAt         DateTime     @default(now())
+  createdById        String
+  createdAt          DateTime     @default(now())
+
+  supplier   Supplier           @relation(fields: [supplierId], references: [id])
+  product    Product            @relation(fields: [productId], references: [id])
+  store      Store?             @relation(fields: [storeId], references: [id])
+  order      Order?             @relation(fields: [orderId], references: [id])
+  delivery   Delivery?          @relation(fields: [deliveryId], references: [id])
+  reverses   InventoryMovement? @relation("MovementReversal", fields: [reversesId], references: [id])
+  reversedBy InventoryMovement? @relation("MovementReversal")
+  createdBy  User               @relation("MovementCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([supplierId, clientId])
+  @@index([supplierId, productId])
+  @@index([supplierId, storeId, occurredAt])
+  @@index([supplierId, occurredAt])
+  @@index([deliveryId])
+}
+
+// ─── Orders & deliveries ──────────────────────────────────────────────────────
+
+model Order {
+  id           String      @id @default(cuid())
+  supplierId   String
+  storeId      String
+  orderNumber  Int
+  status       OrderStatus @default(PENDING)
+  source       OrderSource @default(SUPPLIER)
+  orderDate    DateTime    @default(now())
+  deliveryDate DateTime?
+  subtotal     Decimal     @db.Decimal(12, 2)
+  discount     Decimal     @default(0) @db.Decimal(12, 2)
+  total        Decimal     @db.Decimal(12, 2)
+  notes        String?
+  clientId     String?
+  cancelledAt  DateTime?
+  cancelReason String?
+  createdById  String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  supplier   Supplier            @relation(fields: [supplierId], references: [id])
+  store      Store               @relation(fields: [storeId], references: [id])
+  createdBy  User                @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  items      OrderItem[]
+  deliveries Delivery[]
+  movements  InventoryMovement[]
+  ledger     LedgerEntry[]
+  payments   Payment[]
+
+  @@unique([supplierId, orderNumber])
+  @@unique([supplierId, clientId])
+  @@index([supplierId, status, deliveryDate])
+  @@index([supplierId, storeId, orderDate])
+  @@index([supplierId, orderDate])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  unitPrice Decimal @db.Decimal(12, 2)
+  lineTotal Decimal @db.Decimal(12, 2)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([orderId, productId])
+}
+
+model Delivery {
+  id            String   @id @default(cuid())
+  supplierId    String
+  orderId       String
+  storeId       String
+  deliveredById String
+  deliveredAt   DateTime @default(now())
+  notes         String?
+  /// Set when the delivery pushed filled stock below zero (accepted, but needs review).
+  stockWarning  Boolean  @default(false)
+  clientId      String?
+  createdAt     DateTime @default(now())
+
+  supplier    Supplier            @relation(fields: [supplierId], references: [id])
+  order       Order               @relation(fields: [orderId], references: [id])
+  store       Store               @relation(fields: [storeId], references: [id])
+  deliveredBy User                @relation("DeliveryBy", fields: [deliveredById], references: [id])
+  items       DeliveryItem[]
+  movements   InventoryMovement[]
+
+  @@unique([supplierId, clientId])
+  @@index([supplierId, deliveredAt])
+  @@index([supplierId, storeId, deliveredAt])
+  @@index([orderId])
+}
+
+model DeliveryItem {
+  id             String @id @default(cuid())
+  deliveryId     String
+  productId      String
+  deliveredQty   Int
+  emptyCollected Int    @default(0)
+  damagedQty     Int    @default(0)
+
+  delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@unique([deliveryId, productId])
+}
+
+// ─── Money ────────────────────────────────────────────────────────────────────
+
+model LedgerEntry {
+  id          String     @id @default(cuid())
+  supplierId  String
+  storeId     String
+  type        LedgerType
+  /// Signed. Positive increases what the store owes; negative reduces it.
+  amount      Decimal    @db.Decimal(12, 2)
+  orderId     String?
+  paymentId   String?
+  reversesId  String?    @unique
+  note        String?
+  occurredAt  DateTime   @default(now())
+  createdById String
+  createdAt   DateTime   @default(now())
+
+  supplier   Supplier     @relation(fields: [supplierId], references: [id])
+  store      Store        @relation(fields: [storeId], references: [id])
+  order      Order?       @relation(fields: [orderId], references: [id])
+  payment    Payment?     @relation(fields: [paymentId], references: [id])
+  reverses   LedgerEntry? @relation("LedgerReversal", fields: [reversesId], references: [id])
+  reversedBy LedgerEntry? @relation("LedgerReversal")
+  createdBy  User         @relation("LedgerCreatedBy", fields: [createdById], references: [id])
+
+  @@index([supplierId, storeId, occurredAt])
+  @@index([supplierId, occurredAt])
+  @@index([orderId])
+  @@index([paymentId])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  supplierId      String
+  storeId         String
+  orderId         String?
+  amount          Decimal       @db.Decimal(12, 2)
+  method          PaymentMethod
+  referenceNumber String?
+  paymentDate     DateTime      @default(now())
+  notes           String?
+  clientId        String?
+  reversedAt      DateTime?
+  reversedById    String?
+  reversalReason  String?
+  createdById     String
+  createdAt       DateTime      @default(now())
+
+  supplier   Supplier        @relation(fields: [supplierId], references: [id])
+  store      Store           @relation(fields: [storeId], references: [id])
+  order      Order?          @relation(fields: [orderId], references: [id])
+  createdBy  User            @relation("PaymentCreatedBy", fields: [createdById], references: [id])
+  reversedBy User?           @relation("PaymentReversedBy", fields: [reversedById], references: [id])
+  ledger     LedgerEntry[]
+  cashFlow   CashFlowEntry[]
+
+  @@unique([supplierId, clientId])
+  @@index([supplierId, storeId, paymentDate])
+  @@index([supplierId, paymentDate])
+  @@index([orderId])
+}
+
+model CashFlowEntry {
+  id          String           @id @default(cuid())
+  supplierId  String
+  type        CashFlowType
+  category    CashFlowCategory
+  /// Signed within its type: a reversal of income is a negative INCOME row.
+  amount      Decimal          @db.Decimal(12, 2)
+  date        DateTime         @default(now())
+  method      PaymentMethod
+  description String?
+  reference   String?
+  paymentId   String?
+  reversesId  String?          @unique
+  clientId    String?
+  createdById String
+  createdAt   DateTime         @default(now())
+
+  supplier   Supplier       @relation(fields: [supplierId], references: [id])
+  payment    Payment?       @relation(fields: [paymentId], references: [id])
+  reverses   CashFlowEntry? @relation("CashFlowReversal", fields: [reversesId], references: [id])
+  reversedBy CashFlowEntry? @relation("CashFlowReversal")
+  createdBy  User           @relation("CashFlowCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([supplierId, clientId])
+  @@index([supplierId, date])
+  @@index([supplierId, type, category, date])
+}
+
+// ─── Audit ────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  supplierId String
+  actorId    String
+  action     String
+  entity     String
+  entityId   String
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  actor    User     @relation(fields: [actorId], references: [id])
+
+  @@index([supplierId, entity, entityId])
+  @@index([supplierId, createdAt])
+}

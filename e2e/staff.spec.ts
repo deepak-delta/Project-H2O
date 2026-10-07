@@ -83,3 +83,27 @@ test('delivery staff: sees only their day, delivers the order given to them, han
   await expect(page.getByRole('link', { name: /Raju Kumar/ })).toContainText('₹50');
   await expect(page.getByRole('link', { name: /Raju Kumar/ })).toContainText('staff expense');
 });
+
+test("the owner's dashboard updates by itself when staff deliver", async ({ page, browser }) => {
+  const { storeId, productId } = await setupSupplier(page.request);
+  const staffPhone = randomPhone();
+  await api(page.request, 'POST', '/api/staff', { name: 'Mani', phone: staffPhone, pin: '246810' });
+
+  await page.goto('/');
+  const sales = page.getByText('Sales', { exact: true }).locator('..');
+  await expect(sales).toContainText('₹0');
+
+  // Staff delivers from their own phone; the owner's screen is left open, untouched.
+  const staffSide = await browser.newContext();
+  await staffSide.request.post('/api/auth/login', { data: { phone: staffPhone, pin: '246810' }, headers: { origin: 'http://localhost:4173' } });
+  await api(staffSide.request, 'POST', '/api/orders/quick-sale', {
+    clientId: crypto.randomUUID(),
+    storeId,
+    items: [{ productId, quantity: 3 }],
+    payment: { amount: '150', method: 'CASH' },
+  });
+
+  // Within one check (every 10 seconds), with no reload.
+  await expect(sales).toContainText('₹150', { timeout: 15_000 });
+  await staffSide.close();
+});

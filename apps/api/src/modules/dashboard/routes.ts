@@ -9,6 +9,24 @@ import { stockByProduct } from '../inventory/stock';
 const OPEN_STATUSES = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'] as const;
 
 export function registerDashboardRoutes(app: FastifyInstance, { db }: AppDeps): void {
+  /**
+   * The owner's "anything new?" check, polled every few seconds while the app is open. One
+   * indexed lookup returning when the business last changed (a sale, payment, stock move,
+   * expense, or an order placed / updated, by anyone including staff). The app refreshes its
+   * screens only when this moves, instead of re-running the dashboard on a timer.
+   */
+  app.get('/api/changes', async (req) => {
+    const { supplierId } = requireSupplier(req);
+    const [row] = await db.$queryRaw<{ at: Date | null }[]>`
+      SELECT GREATEST(
+        (SELECT MAX("createdAt") FROM "LedgerEntry" WHERE "supplierId" = ${supplierId}),
+        (SELECT MAX("createdAt") FROM "InventoryMovement" WHERE "supplierId" = ${supplierId}),
+        (SELECT MAX("createdAt") FROM "CashFlowEntry" WHERE "supplierId" = ${supplierId}),
+        (SELECT MAX("updatedAt") FROM "Order" WHERE "supplierId" = ${supplierId})
+      ) AS at`;
+    return { at: row?.at?.toISOString() ?? null };
+  });
+
   app.get('/api/dashboard', async (req): Promise<DashboardSummary> => {
     const { supplierId } = requireSupplier(req);
     const { timezone } = await getBusinessSettings(db, supplierId);

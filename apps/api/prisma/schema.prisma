@@ -339,6 +339,7 @@ model InventoryMovement {
   @@index([supplierId, productId])
   @@index([supplierId, storeId, occurredAt])
   @@index([supplierId, occurredAt])
+  @@index([supplierId, createdAt])
   @@index([deliveryId])
 }
 
@@ -381,6 +382,7 @@ model Order {
   @@index([supplierId, status, deliveryDate])
   @@index([supplierId, storeId, orderDate])
   @@index([supplierId, orderDate])
+  @@index([supplierId, updatedAt])
   @@index([supplierId, assignedToId, status])
 }
 
@@ -465,6 +467,8 @@ model LedgerEntry {
 
   @@index([supplierId, storeId, occurredAt])
   @@index([supplierId, occurredAt])
+  /// Newest entry first: the owner's "anything new?" check.
+  @@index([supplierId, createdAt])
   @@index([orderId])
   @@index([paymentId])
 }
@@ -525,6 +529,7 @@ model CashFlowEntry {
 
   @@unique([supplierId, clientId])
   @@index([supplierId, date])
+  @@index([supplierId, createdAt])
   @@index([supplierId, type, category, date])
 }
 

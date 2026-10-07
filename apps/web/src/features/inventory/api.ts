@@ -42,6 +42,6 @@ export function useDashboard() {
   return useQuery({
     queryKey: qk.dashboard,
     queryFn: () => api.get<DashboardSummary>('/dashboard'),
-    refetchInterval: 60 * 1000,
+    // No timer: useLiveUpdates refreshes it as soon as anything changes.
   });
 }

@@ -261,3 +261,25 @@ describe('turning staff off', () => {
     expect((await other.client.patch(`/api/staff/${staffId}`, { active: false })).statusCode).toBe(404);
   });
 });
+
+describe("the owner's live-update check", () => {
+  it('moves when staff record something, and is owner-only', async () => {
+    const before = (await biz.client.get('/api/changes')).json().at;
+    await new Promise((r) => setTimeout(r, 5));
+    await staff.post('/api/orders/quick-sale', sale(biz.storeId, [{ productId: biz.canId, quantity: 1 }], { amount: '50' }));
+    const after = (await biz.client.get('/api/changes')).json().at;
+    expect(after).not.toBe(before);
+    expect(new Date(after).getTime()).toBeGreaterThan(new Date(before).getTime());
+
+    expect((await staff.get('/api/changes')).statusCode).toBe(403);
+    const store = await storeUserClient(ctx.app, biz.client, biz.storeId, '9700000030');
+    expect((await store.get('/api/changes')).statusCode).toBe(403);
+  });
+
+  it('another business’s activity does not move it', async () => {
+    const before = (await biz.client.get('/api/changes')).json().at;
+    const other = await signupSupplier(ctx.app, { phone: '9555500020' });
+    await other.client.post('/api/cashflow', { clientId: randomUUID(), type: 'EXPENSE', category: 'FUEL', amount: '10', method: 'CASH' });
+    expect((await biz.client.get('/api/changes')).json().at).toBe(before);
+  });
+});

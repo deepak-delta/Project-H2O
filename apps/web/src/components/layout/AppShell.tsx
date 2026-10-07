@@ -4,6 +4,7 @@ import { Outlet, useLocation } from 'react-router';
 import { useSession } from '../../features/auth/session';
 import { PageSpinner } from '../ui/Spinner';
 import { useSyncEngine } from '../../offline/engine';
+import { useLiveUpdates } from '../../offline/useLiveUpdates';
 import { useWarmCache } from '../../offline/useWarmCache';
 import { BottomNav } from './BottomNav';
 import { SyncBar } from './SyncBar';
@@ -21,6 +22,8 @@ export function AppShell({ nav = true }: { nav?: boolean }) {
   const { user } = useSession();
   useSyncEngine(user.id);
   useWarmCache(user.role);
+  // The owner sees staff and store activity within seconds.
+  useLiveUpdates(user.role === 'SUPPLIER');
   const scroller = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
   // Each screen starts at the top.

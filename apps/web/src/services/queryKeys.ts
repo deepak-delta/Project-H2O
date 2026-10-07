@@ -19,7 +19,11 @@ export const qk = {
   storeHome: ['store-home'] as const,
   cashflow: ['cashflow'] as const,
   reports: ['reports'] as const,
+  /** Delivery staff: the list (owner), and each person's day. */
+  staffRoot: ['staff'] as const,
+  /** `id` is a staff member's id, or 'me' for the signed-in member of staff. */
+  staffToday: (id: string) => ['staff', 'today', id] as const,
 };
 
 /** Everything a sale, payment or stock change can affect. */
-export const MONEY_AND_STOCK_KEYS = [qk.dashboard, qk.storesRoot, qk.ordersRoot, qk.paymentsRoot, qk.inventory, qk.cashflow, qk.reports, qk.storeHome];
+export const MONEY_AND_STOCK_KEYS = [qk.dashboard, qk.storesRoot, qk.ordersRoot, qk.paymentsRoot, qk.inventory, qk.cashflow, qk.reports, qk.storeHome, qk.staffRoot];

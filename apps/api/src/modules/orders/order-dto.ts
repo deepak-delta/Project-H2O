@@ -6,6 +6,7 @@ import type { Prisma } from '../../generated/prisma/client';
 
 export const orderDetailInclude = {
   store: { select: { name: true } },
+  assignedTo: { select: { id: true, name: true } },
   items: { include: { product: { select: { name: true } } } },
   deliveries: { include: { items: true }, orderBy: { deliveredAt: 'asc' } },
   payments: { orderBy: { paymentDate: 'asc' } },
@@ -77,6 +78,7 @@ export function toOrderDto(o: OrderRow): OrderDto {
       reversed: p.reversedAt !== null,
     })),
     stockWarning: o.deliveries.some((d) => d.stockWarning),
+    assignedTo: o.assignedTo,
   };
 }
 
@@ -92,6 +94,7 @@ export async function loadOrderDto(
 
 export const orderListInclude = {
   store: { select: { name: true } },
+  assignedTo: { select: { id: true, name: true } },
   items: { select: { quantity: true } },
   payments: { select: { amount: true, reversedAt: true } },
 } as const satisfies Prisma.OrderInclude;
@@ -114,5 +117,6 @@ export function toOrderListItem(o: OrderListRow): OrderListItem {
     amountPaid: fromMinor(paidMinor),
     paymentStatus: paymentStatusFor(totalMinor, paidMinor),
     totalQuantity: o.items.reduce((sum, i) => sum + i.quantity, 0),
+    assignedTo: o.assignedTo,
   };
 }

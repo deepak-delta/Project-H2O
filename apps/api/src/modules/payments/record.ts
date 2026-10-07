@@ -1,5 +1,5 @@
 import type { Minor, PaymentMethod } from '@wd/shared';
-import type { SupplierContext } from '../../lib/auth-context';
+import type { OperatorContext } from '../../lib/auth-context';
 import type { Tx } from '../../lib/db';
 import { minorToDec } from '../../lib/money';
 
@@ -19,7 +19,7 @@ export interface PaymentRecord {
 /**
  * One payment = one Payment row + one PAYMENT ledger entry + cash-flow income, always together.
  */
-export async function recordPaymentInTx(tx: Tx, auth: SupplierContext, p: PaymentRecord) {
+export async function recordPaymentInTx(tx: Tx, auth: OperatorContext, p: PaymentRecord) {
   const { supplierId, userId } = auth;
   const payment = await tx.payment.create({
     data: {

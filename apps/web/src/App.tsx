@@ -41,9 +41,14 @@ const AccountPage = lazy(() => import('./pages/store/AccountPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const SyncPage = lazy(() => import('./features/offline/SyncPage'));
 const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'));
+const StaffHomePage = lazy(() => import('./pages/staff/HomePage'));
+const StaffMorePage = lazy(() => import('./pages/staff/MorePage'));
+const StaffExpensesPage = lazy(() => import('./pages/staff/ExpensesPage'));
+const StaffPage = lazy(() => import('./features/staff/StaffPage'));
+const StaffDayPage = lazy(() => import('./features/staff/StaffDayPage'));
 
 /** Data kept on the phone for offline use: needed to open the app and record deliveries. */
-const OFFLINE_QUERY_ROOTS = new Set(['me', 'products', 'stores', 'orders', 'store-home', 'dashboard', 'inventory', 'payments']);
+const OFFLINE_QUERY_ROOTS = new Set(['me', 'products', 'stores', 'orders', 'store-home', 'dashboard', 'inventory', 'payments', 'staff']);
 const OFFLINE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 
 const queryClient = new QueryClient({
@@ -106,10 +111,13 @@ function OfflineFirstRun() {
   );
 }
 
-/** Renders the screen for the signed-in role; the other role gets a 404 (routes are role-scoped). */
-function ByRole({ supplier, store }: { supplier?: ReactNode; store?: ReactNode }) {
+/**
+ * Renders the screen for the signed-in role; any role not listed gets a 404 (routes are
+ * role-scoped). Staff must be listed explicitly: they never fall through to another role's screen.
+ */
+function ByRole({ supplier, store, staff }: { supplier?: ReactNode; store?: ReactNode; staff?: ReactNode }) {
   const { user } = useSession();
-  const element = user.role === 'SUPPLIER' ? supplier : store;
+  const element = user.role === 'SUPPLIER' ? supplier : user.role === 'STORE' ? store : user.role === 'STAFF' ? staff : undefined;
   return <>{element ?? <NotFoundPage />}</>;
 }
 
@@ -145,17 +153,20 @@ const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { index: true, element: <ByRole supplier={<SupplierHomePage />} store={<StoreHomePage />} /> },
-          { path: 'orders', element: <OrdersPage /> },
-          { path: 'orders/:id', element: <OrderDetailPage /> },
-          { path: 'stores', element: <ByRole supplier={<StoresPage />} /> },
+          { index: true, element: <ByRole supplier={<SupplierHomePage />} store={<StoreHomePage />} staff={<StaffHomePage />} /> },
+          { path: 'orders', element: <ByRole supplier={<OrdersPage />} store={<OrdersPage />} staff={<Navigate to="/" replace />} /> },
+          { path: 'orders/:id', element: <ByRole supplier={<OrderDetailPage />} store={<OrderDetailPage />} staff={<OrderDetailPage />} /> },
+          { path: 'stores', element: <ByRole supplier={<StoresPage />} staff={<StoresPage />} /> },
           { path: 'stores/new', element: <ByRole supplier={<StoreFormPage />} /> },
-          { path: 'stores/:id', element: <ByRole supplier={<StoreDetailPage />} /> },
+          { path: 'stores/:id', element: <ByRole supplier={<StoreDetailPage />} staff={<StoreDetailPage />} /> },
           { path: 'stores/:id/edit', element: <ByRole supplier={<StoreFormPage />} /> },
           { path: 'inventory', element: <ByRole supplier={<InventoryPage />} /> },
           { path: 'inventory/holders', element: <ByRole supplier={<HoldersPage />} /> },
-          { path: 'more', element: <ByRole supplier={<MorePage />} /> },
-          { path: 'payments', element: <PaymentsPage /> },
+          { path: 'more', element: <ByRole supplier={<MorePage />} staff={<StaffMorePage />} /> },
+          { path: 'staff', element: <ByRole supplier={<StaffPage />} /> },
+          { path: 'expenses', element: <ByRole staff={<StaffExpensesPage />} /> },
+          { path: 'staff/:id', element: <ByRole supplier={<StaffDayPage />} /> },
+          { path: 'payments', element: <ByRole supplier={<PaymentsPage />} store={<PaymentsPage />} /> },
           { path: 'cashflow', element: <ByRole supplier={<CashFlowPage />} /> },
           { path: 'reports', element: <ByRole supplier={<ReportsPage />} /> },
           { path: 'reports/sales', element: <ByRole supplier={<SalesReportPage />} /> },
@@ -175,8 +186,8 @@ const router = createBrowserRouter([
         // Focused flows: no bottom nav, the page owns its sticky action bar.
         element: <AppShell nav={false} />,
         children: [
-          { path: 'orders/new', element: <ByRole supplier={<NewOrderPage />} store={<OrderWaterPage />} /> },
-          { path: 'orders/:id/deliver', element: <ByRole supplier={<DeliverOrderPage />} /> },
+          { path: 'orders/new', element: <ByRole supplier={<NewOrderPage />} store={<OrderWaterPage />} staff={<NewOrderPage />} /> },
+          { path: 'orders/:id/deliver', element: <ByRole supplier={<DeliverOrderPage />} staff={<DeliverOrderPage />} /> },
         ],
       },
     ],

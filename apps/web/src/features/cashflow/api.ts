@@ -27,6 +27,8 @@ function useInvalidateCash() {
   return () => {
     void queryClient.invalidateQueries({ queryKey: qk.cashflow });
     void queryClient.invalidateQueries({ queryKey: qk.dashboard });
+    // Staff see their expenses (and cash in hand) on their own day.
+    void queryClient.invalidateQueries({ queryKey: qk.staffRoot });
   };
 }
 

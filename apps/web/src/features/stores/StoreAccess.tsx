@@ -7,16 +7,9 @@ import { Field } from '../../components/ui/Field';
 import { ConfirmSheet, Sheet } from '../../components/ui/Sheet';
 import { ApiError, errorMessage } from '../../services/api';
 import { toast } from '../../stores/toast';
+import { randomPin } from '../../utils/pin';
 import { useDisableStoreLogin, useSetStoreLogin } from './api';
 
-/** Six random digits, avoiding repeats like 111111 and runs like 123456. */
-function randomPin(): string {
-  for (;;) {
-    const digits = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => String(b % 10)).join('');
-    const sequential = '0123456789012345'.includes(digits) || '9876543210987654'.includes(digits);
-    if (new Set(digits).size > 2 && !sequential) return digits;
-  }
-}
 
 /** Lets the supplier switch on the store's own app login and share it. */
 export function StoreAccessCard({ store }: { store: StoreDetail }) {

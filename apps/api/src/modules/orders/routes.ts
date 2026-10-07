@@ -1,4 +1,5 @@
 import {
+  assignOrderSchema,
   cancelOrderSchema,
   deliverOrderSchema,
   ORDER_STATUSES,
@@ -11,7 +12,9 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Services } from '../../app';
 import * as notify from '../notifications/events';
-import { ownedBy, requireAuth, requireSupplier } from '../../lib/auth-context';
+import { ownedBy, requireAuth, requireOperator, requireOwnerOrStore, requireSupplier } from '../../lib/auth-context';
+import { notFound, validationError } from '../../lib/errors';
+import { businessToday, staffOrderWhere } from '../staff/scope';
 import { getBusinessSettings } from '../../lib/business';
 import { decodeCursor, olderThan, toPage } from '../../lib/pagination';
 import { parse } from '../../lib/validate';
@@ -26,7 +29,7 @@ const idParams = z.object({ id: z.string().min(1) });
 export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Services): void {
   /** Create + deliver + collect payment in one step (supplier's main flow). */
   app.post('/api/orders/quick-sale', async (req, reply) => {
-    const auth = requireSupplier(req);
+    const auth = requireOperator(req);
     const input = parse(quickSaleSchema, req.body);
     const result = await quickSale(db, auth, input);
     if (!result.replayed) {
@@ -49,8 +52,10 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
       req.query,
     );
 
-    // Store users are always pinned to their own store, whatever they ask for.
-    const where: Prisma.OrderWhereInput = { ...ownedBy(auth) };
+    // Store users are always pinned to their own store, staff to their own work today,
+    // whatever they ask for.
+    const where: Prisma.OrderWhereInput =
+      auth.role === 'STAFF' ? staffOrderWhere(auth, await businessToday(db, auth.supplierId)) : { ...ownedBy(auth) };
     if (q.storeId && auth.role === 'SUPPLIER') where.storeId = q.storeId;
     if (q.status === 'OPEN') where.status = { in: [...OPEN_STATUSES] };
     else if (q.status) where.status = q.status;
@@ -79,12 +84,17 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
   app.get('/api/orders/:id', async (req) => {
     const auth = requireAuth(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
+    if (auth.role === 'STAFF') {
+      const visible = await db.order.count({ where: { AND: [{ id }, staffOrderWhere(auth, await businessToday(db, auth.supplierId))] } });
+      if (!visible) throw notFound('Order');
+      return loadOrderDto(db, { supplierId: auth.supplierId }, id);
+    }
     return loadOrderDto(db, ownedBy(auth), id);
   });
 
   /** Place an order for later delivery (store app, or a supplier noting a phone order). */
   app.post('/api/orders', async (req, reply) => {
-    const auth = requireAuth(req);
+    const auth = requireOwnerOrStore(req);
     const input = parse(placeOrderSchema, req.body);
     const { order, replayed } = await placeOrder(db, auth, input);
     if (!replayed && auth.role === 'STORE') await notify.orderPlaced(db, notifier, auth.supplierId, order);
@@ -102,7 +112,7 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
 
   /** Deliver an open order, fully or partly. */
   app.post('/api/orders/:id/deliver', async (req, reply) => {
-    const auth = requireSupplier(req);
+    const auth = requireOperator(req);
     const { id } = parse(idParams, req.params);
     const input = parse(deliverOrderSchema, req.body);
     const result = await deliverOrder(db, auth, id, input);
@@ -112,8 +122,28 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
     return reply.status(result.replayed ? 200 : 201).send(result);
   });
 
+  /** Owner gives an open order to a member of staff (or takes it back with staffId null). */
+  app.post('/api/orders/:id/assign', async (req) => {
+    const auth = requireSupplier(req);
+    const { id } = parse(idParams, req.params);
+    const { staffId } = parse(assignOrderSchema, req.body);
+    const order = await db.order.findFirst({ where: { id, supplierId: auth.supplierId }, select: { status: true, assignedToId: true } });
+    if (!order) throw notFound('Order');
+    if (!(['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY', 'PARTIALLY_DELIVERED'] as string[]).includes(order.status)) {
+      throw validationError('Only orders still to be delivered can be given to staff.');
+    }
+    if (staffId) {
+      const staff = await db.user.findFirst({ where: { id: staffId, supplierId: auth.supplierId, role: 'STAFF', active: true }, select: { id: true } });
+      if (!staff) throw validationError('Choose an active member of staff.', { staffId: 'Not found' });
+    }
+    await db.order.update({ where: { id }, data: { assignedToId: staffId } });
+    const dto = await loadOrderDto(db, { supplierId: auth.supplierId }, id);
+    if (staffId && staffId !== order.assignedToId) await notify.orderAssigned(notifier, staffId, dto);
+    return dto;
+  });
+
   app.post('/api/orders/:id/cancel', async (req) => {
-    const auth = requireAuth(req);
+    const auth = requireOwnerOrStore(req);
     const { id } = parse(idParams, req.params);
     const input = parse(cancelOrderSchema, req.body ?? {});
     const order = await cancelOrder(db, auth, id, input);

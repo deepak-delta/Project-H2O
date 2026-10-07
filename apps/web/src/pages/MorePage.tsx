@@ -1,5 +1,5 @@
 import { formatPhone } from '@wd/shared';
-import { Bell, Boxes, ChartColumn, Package, Receipt, ShieldCheck, Wallet, type LucideIcon } from 'lucide-react';
+import { Bell, Boxes, ChartColumn, Package, Receipt, ShieldCheck, Truck, Wallet, type LucideIcon } from 'lucide-react';
 import { PageBody, PageHeader } from '../components/layout/PageHeader';
 import { Card, ListCard, ListRow } from '../components/ui/Card';
 import { LogoutButton } from '../features/auth/LogoutButton';
@@ -13,6 +13,7 @@ interface MoreLink {
 
 const BUSINESS_LINKS: MoreLink[] = [
   { to: '/inventory', label: 'Inventory', icon: Boxes },
+  { to: '/staff', label: 'Delivery staff', icon: Truck },
   { to: '/reports', label: 'Reports', icon: ChartColumn },
   { to: '/payments', label: 'Payments', icon: Wallet },
   { to: '/cashflow', label: 'Cash flow & expenses', icon: Receipt },

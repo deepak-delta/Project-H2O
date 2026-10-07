@@ -130,6 +130,8 @@ export interface OrderDto {
   items: OrderItemDto[];
   payments: OrderPaymentDto[];
   stockWarning: boolean;
+  /** Member of staff the owner gave this order to. */
+  assignedTo: { id: string; name: string } | null;
 }
 
 export interface OrderListItem {
@@ -145,6 +147,8 @@ export interface OrderListItem {
   amountPaid: string;
   paymentStatus: PaymentStatus;
   totalQuantity: number;
+  /** Member of staff the owner gave this order to. */
+  assignedTo: { id: string; name: string } | null;
 }
 
 export interface QuickSaleResult {

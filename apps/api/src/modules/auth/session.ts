@@ -73,6 +73,9 @@ export async function resolveSession(db: Db, token: string): Promise<AuthContext
       storeId: user.storeId,
     };
   }
+  if (user.role === 'STAFF') {
+    return { role: 'STAFF', userId: user.id, sessionId: session.id, supplierId: user.supplierId, storeId: null };
+  }
   return {
     role: 'SUPPLIER',
     userId: user.id,

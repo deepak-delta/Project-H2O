@@ -7,6 +7,7 @@ import type { Db } from './lib/db';
 import { createWebPushSender, type PushSender } from './lib/push';
 import { Notifier } from './modules/notifications/notifier';
 import { registerPushRoutes } from './modules/notifications/routes';
+import { registerStaffRoutes } from './modules/staff/routes';
 import { registerAuthRoutes } from './modules/auth/routes';
 import { registerCashFlowRoutes } from './modules/cashflow/routes';
 import { registerDashboardRoutes } from './modules/dashboard/routes';
@@ -77,6 +78,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerPaymentRoutes(app, services);
   registerDashboardRoutes(app, services);
   registerStoreAppRoutes(app, services);
+  registerStaffRoutes(app, services);
   registerCashFlowRoutes(app, services);
   registerReportRoutes(app, services);
   registerPushRoutes(app, services);

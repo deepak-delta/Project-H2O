@@ -16,7 +16,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Services } from '../../app';
 import * as notify from '../notifications/events';
-import { requireAuth, requireSupplier, type AuthContext } from '../../lib/auth-context';
+import { requireOperator, requireOwnerOrStore, requireSupplier, type StoreContext, type SupplierContext } from '../../lib/auth-context';
 import { audit } from '../../lib/audit';
 import type { Db } from '../../lib/db';
 import { conflict, notFound, validationError } from '../../lib/errors';
@@ -175,8 +175,13 @@ async function loadStoreDetail(db: Db, supplierId: string, storeId: string): Pro
   };
 }
 
+/** What staff may see of a store: no app-login details (those are the owner's business). */
+function forStaff(detail: StoreDetail): StoreDetail {
+  return { ...detail, hasLogin: false, loginPhone: null };
+}
+
 /** Suppliers may open any of their stores; a store user only their own. Others get a 404. */
-async function assertStoreAccess(db: Db, auth: AuthContext, storeId: string): Promise<void> {
+async function assertStoreAccess(db: Db, auth: SupplierContext | StoreContext, storeId: string): Promise<void> {
   if (auth.role === 'STORE') {
     if (auth.storeId !== storeId) throw notFound('Store');
     return;
@@ -187,8 +192,10 @@ async function assertStoreAccess(db: Db, auth: AuthContext, storeId: string): Pr
 
 export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }: Services): void {
   app.get('/api/stores', async (req) => {
-    const auth = requireSupplier(req);
-    return listStores(db, auth.supplierId, parse(listQuerySchema, req.query));
+    const auth = requireOperator(req);
+    const q = parse(listQuerySchema, req.query);
+    // Staff work with active stores only.
+    return listStores(db, auth.supplierId, auth.role === 'STAFF' && q.filter === 'inactive' ? { ...q, filter: 'all' } : q);
   });
 
   app.post('/api/stores', async (req, reply) => {
@@ -272,9 +279,14 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
   });
 
   app.get('/api/stores/:id', async (req) => {
-    const auth = requireSupplier(req);
+    const auth = requireOperator(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
-    return loadStoreDetail(db, auth.supplierId, id);
+    const detail = await loadStoreDetail(db, auth.supplierId, id);
+    if (auth.role === 'STAFF') {
+      if (detail.status !== 'ACTIVE') throw notFound('Store');
+      return forStaff(detail);
+    }
+    return detail;
   });
 
   app.patch('/api/stores/:id', async (req) => {
@@ -330,7 +342,7 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
 
   /** Money ledger with a running balance — the digital version of the shop's notebook page. */
   app.get('/api/stores/:id/ledger', async (req) => {
-    const auth = requireAuth(req);
+    const auth = requireOwnerOrStore(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const q = parse(
       z.object({ cursor: z.string().optional(), limit: z.coerce.number().int().min(1).max(100).default(30) }),
@@ -387,7 +399,7 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
 
   /** Can ledger: every change in the number of cans this store holds. */
   app.get('/api/stores/:id/cans', async (req) => {
-    const auth = requireAuth(req);
+    const auth = requireOwnerOrStore(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
     await assertStoreAccess(db, auth, id);
     const q = parse(
@@ -423,7 +435,7 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
 
   /** Empty cans picked up without a delivery. */
   app.post('/api/stores/:id/can-returns', async (req, reply) => {
-    const auth = requireSupplier(req);
+    const auth = requireOperator(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const input = parse(canReturnSchema, req.body);
     const store = await db.store.findFirst({ where: { id, supplierId: auth.supplierId } });
@@ -459,7 +471,8 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
         }),
     );
 
-    return reply.status(replayed ? 200 : 201).send(await loadStoreDetail(db, auth.supplierId, id));
+    const detail = await loadStoreDetail(db, auth.supplierId, id);
+    return reply.status(replayed ? 200 : 201).send(auth.role === 'STAFF' ? forStaff(detail) : detail);
   });
 
   /** Turn on (or reset) the store's own app login: phone + PIN chosen by the supplier. */

@@ -17,7 +17,7 @@ export function useWarmCache(role: Role): void {
   useEffect(() => {
     if (!online) return;
     void queryClient.prefetchQuery(productsQueryOptions(false));
-    if (role === 'SUPPLIER') {
+    if (role === 'SUPPLIER' || role === 'STAFF') {
       void queryClient.prefetchInfiniteQuery(storesQueryOptions(RECENT_STORES));
     } else {
       void queryClient.prefetchQuery({ queryKey: qk.storeHome, queryFn: () => api.get('/store/home') });

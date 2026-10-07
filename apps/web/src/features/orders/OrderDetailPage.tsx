@@ -13,6 +13,7 @@ import { errorMessage } from '../../services/api';
 import { toast } from '../../stores/toast';
 import { formatDate, formatDateTime } from '../../utils/format';
 import { useSession } from '../auth/session';
+import { useAssignOrder, useStaffList } from '../staff/api';
 import { useOrder, useOrderStatus } from './api';
 import { SummaryRow } from './DeliveryForm';
 import { CancelOrderSheet, ReversePaymentSheet } from './OrderSheets';
@@ -43,6 +44,8 @@ function OrderView({ order: o }: { order: OrderDto }) {
   const tz = useTimezone();
   const { user } = useSession();
   const isSupplier = user.role === 'SUPPLIER';
+  const isStore = user.role === 'STORE';
+  const isStaff = user.role === 'STAFF';
   const open = OPEN.includes(o.status);
   const delivered = o.status === 'DELIVERED' || o.status === 'PARTIALLY_DELIVERED';
   const [cancelling, setCancelling] = useState(false);
@@ -55,7 +58,7 @@ function OrderView({ order: o }: { order: OrderDto }) {
         <Card className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              {isSupplier ? (
+              {!isStore ? (
                 <Link to={`/stores/${o.storeId}`} className="block truncate text-lg font-semibold text-brand-700">
                   {o.storeName}
                 </Link>
@@ -86,6 +89,8 @@ function OrderView({ order: o }: { order: OrderDto }) {
         </Card>
 
         {isSupplier ? <SupplierActions order={o} /> : null}
+        {isSupplier ? <AssignControl order={o} /> : null}
+        {isStaff && o.assignedTo?.id === user.id && (open || o.status === 'PARTIALLY_DELIVERED') ? <StaffDeliver order={o} /> : null}
 
         <section>
           <SectionTitle>Items</SectionTitle>
@@ -164,7 +169,7 @@ function OrderView({ order: o }: { order: OrderDto }) {
           </Card>
         ) : null}
 
-        {o.status !== 'CANCELLED' && (isSupplier || o.status === 'PENDING') ? (
+        {o.status !== 'CANCELLED' && (isSupplier || (isStore && o.status === 'PENDING')) ? (
           <Button variant="dangerGhost" block onClick={() => setCancelling(true)}>
             {delivered ? 'Cancel delivery' : 'Cancel order'}
           </Button>
@@ -198,5 +203,52 @@ function SupplierActions({ order: o }: { order: OrderDto }) {
         {o.status === 'PARTIALLY_DELIVERED' ? 'Deliver rest' : 'Deliver'}
       </Button>
     </div>
+  );
+}
+
+/** Staff: deliver an order the owner gave them. */
+function StaffDeliver({ order: o }: { order: OrderDto }) {
+  const navigate = useNavigate();
+  return (
+    <Button size="lg" block icon={<Truck className="size-5" />} onClick={() => void navigate(`/orders/${o.id}/deliver`)}>
+      {o.status === 'PARTIALLY_DELIVERED' ? 'Deliver rest' : 'Deliver'}
+    </Button>
+  );
+}
+
+/** Owner: who delivers this order. Staff get a notification and see it in their day. */
+function AssignControl({ order: o }: { order: OrderDto }) {
+  const canAssign = OPEN.includes(o.status) || o.status === 'PARTIALLY_DELIVERED';
+  const staff = useStaffList(canAssign);
+  const assign = useAssignOrder(o.id);
+  const active = staff.data?.filter((s) => s.active) ?? [];
+  if (!canAssign) return o.assignedTo ? <p className="px-1 text-sm text-muted">Delivered by {o.assignedTo.name}</p> : null;
+  if (!staff.data || (active.length === 0 && !o.assignedTo)) return null;
+  return (
+    <Card className="flex items-center justify-between gap-3 px-4 py-3">
+      <label htmlFor="assign-staff" className="text-[15px] font-medium text-ink-2">
+        Delivered by
+      </label>
+      <select
+        id="assign-staff"
+        className="h-11 min-w-0 rounded-xl border border-line-strong bg-surface px-3 text-[15px] text-ink"
+        value={o.assignedTo?.id ?? ''}
+        disabled={assign.isPending}
+        onChange={(e) =>
+          assign.mutate(e.target.value || null, {
+            onSuccess: (order) =>
+              toast.success(order.assignedTo ? `Given to ${order.assignedTo.name}. They've been notified.` : 'You will deliver this order.'),
+            onError: (err) => toast.error(errorMessage(err)),
+          })
+        }
+      >
+        <option value="">Me (owner)</option>
+        {active.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+    </Card>
   );
 }

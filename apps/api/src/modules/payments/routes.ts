@@ -3,7 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Services } from '../../app';
 import * as notify from '../notifications/events';
-import { ownedBy, requireAuth, requireSupplier } from '../../lib/auth-context';
+import { ownedBy, requireAuth, requireOperator, requireSupplier } from '../../lib/auth-context';
+import { businessToday, staffPaymentWhere } from '../staff/scope';
 import { getBusinessSettings } from '../../lib/business';
 import { notFound } from '../../lib/errors';
 import { idempotent } from '../../lib/idempotency';
@@ -42,7 +43,7 @@ export function toPaymentDto(p: PaymentRow): PaymentDto {
 export function registerPaymentRoutes(app: FastifyInstance, { db, notifier }: Services): void {
   /** Money received against a store's balance (not tied to a particular order). */
   app.post('/api/payments', async (req, reply) => {
-    const auth = requireSupplier(req);
+    const auth = requireOperator(req);
     const input = parse(recordPaymentSchema, req.body);
 
     const store = await db.store.findFirst({ where: { id: input.storeId, supplierId: auth.supplierId } });
@@ -103,7 +104,8 @@ export function registerPaymentRoutes(app: FastifyInstance, { db, notifier }: Se
       }),
       req.query,
     );
-    const where: Prisma.PaymentWhereInput = { ...ownedBy(auth) };
+    const where: Prisma.PaymentWhereInput =
+      auth.role === 'STAFF' ? staffPaymentWhere(auth, await businessToday(db, auth.supplierId)) : { ...ownedBy(auth) };
     if (q.storeId && auth.role === 'SUPPLIER') where.storeId = q.storeId;
     if (q.date) {
       const { timezone } = await getBusinessSettings(db, auth.supplierId);

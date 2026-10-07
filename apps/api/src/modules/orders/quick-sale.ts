@@ -1,6 +1,6 @@
 import { fromMinor, toMinor, type quickSaleSchema, type QuickSaleResult } from '@wd/shared';
 import type { z } from 'zod';
-import type { SupplierContext } from '../../lib/auth-context';
+import type { OperatorContext } from '../../lib/auth-context';
 import type { Db, Tx } from '../../lib/db';
 import { notFound, validationError } from '../../lib/errors';
 import { idempotent } from '../../lib/idempotency';
@@ -17,7 +17,7 @@ type QuickSale = z.output<typeof quickSaleSchema>;
  * The supplier's main flow: store → quantities → empties → payment → confirm.
  * Creates the order and records its delivery in ONE transaction: all of it or none of it.
  */
-export async function quickSale(db: Db, auth: SupplierContext, input: QuickSale): Promise<QuickSaleResult> {
+export async function quickSale(db: Db, auth: OperatorContext, input: QuickSale): Promise<QuickSaleResult> {
   const { result: orderId, replayed } = await idempotent(
     async () =>
       (
@@ -34,7 +34,7 @@ export async function quickSale(db: Db, auth: SupplierContext, input: QuickSale)
   return { order, storeBalance: fromMinor(balance), replayed };
 }
 
-async function createAndDeliver(tx: Tx, auth: SupplierContext, input: QuickSale): Promise<string> {
+async function createAndDeliver(tx: Tx, auth: OperatorContext, input: QuickSale): Promise<string> {
   const { supplierId, userId } = auth;
 
   const store = await tx.store.findFirst({ where: { id: input.storeId, supplierId } });

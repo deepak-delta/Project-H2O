@@ -1,5 +1,5 @@
 import { lineTotalMinor, type Minor, type PaymentMethod } from '@wd/shared';
-import type { SupplierContext } from '../../lib/auth-context';
+import type { OperatorContext } from '../../lib/auth-context';
 import type { Tx } from '../../lib/db';
 import { validationError } from '../../lib/errors';
 import { decToMinor, minorToDec } from '../../lib/money';
@@ -32,7 +32,7 @@ export interface RecordDeliveryArgs {
  *
  * Revenue is recognised here, on delivery — never when an order is merely placed.
  */
-export async function recordDelivery(tx: Tx, auth: SupplierContext, a: RecordDeliveryArgs) {
+export async function recordDelivery(tx: Tx, auth: OperatorContext, a: RecordDeliveryArgs) {
   const { supplierId, userId } = auth;
 
   for (const l of a.lines) {

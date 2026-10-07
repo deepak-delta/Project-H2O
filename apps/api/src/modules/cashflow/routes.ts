@@ -12,10 +12,10 @@ import {
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AppDeps } from '../../app';
-import { requireSupplier } from '../../lib/auth-context';
+import { requireOperator, requireSupplier } from '../../lib/auth-context';
 import { audit } from '../../lib/audit';
 import { getBusinessSettings } from '../../lib/business';
-import { conflict, notFound, validationError } from '../../lib/errors';
+import { conflict, forbidden, notFound, validationError } from '../../lib/errors';
 import { idempotent } from '../../lib/idempotency';
 import { decToMinor, decToString, minorToDec } from '../../lib/money';
 import { decodeCursor, olderThan, toPage } from '../../lib/pagination';
@@ -50,10 +50,15 @@ function toEntryDto(e: EntryRow): CashEntryDto {
 export function registerCashFlowRoutes(app: FastifyInstance, { db }: AppDeps): void {
   /** Expenses and other income entered by hand. Sales income is recorded by payments. */
   app.post('/api/cashflow', async (req, reply) => {
-    const auth = requireSupplier(req);
+    const auth = requireOperator(req);
     const input = parse(cashEntrySchema, req.body);
     const { timezone } = await getBusinessSettings(db, auth.supplierId);
     const today = zonedDateKey(new Date(), timezone);
+    // Staff record their own spending on the route, for today only.
+    if (auth.role === 'STAFF') {
+      if (input.type !== 'EXPENSE') throw forbidden('Only the owner can record income here.');
+      if (input.date && input.date !== today) throw validationError('Staff can only record expenses for today.', { date: 'Today only' });
+    }
     if (input.date && input.date > today) throw validationError('The date cannot be in the future.', { date: 'Date is in the future' });
 
     // Today's entries keep the real time; back-dated ones sit at midday of that day.

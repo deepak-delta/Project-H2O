@@ -142,3 +142,13 @@ export async function paymentReminder(db: Db, n: Notifier, supplierId: string, s
     tag: 'payment-reminder',
   });
 }
+
+/** Owner gave an order to a member of staff → that staff member. */
+export async function orderAssigned(n: Notifier, staffId: string, order: OrderDto): Promise<void> {
+  await n.toUser(staffId, {
+    title: `New delivery · ${order.storeName}`,
+    body: `Order #${order.orderNumber} · ${cans(ordered(order))}${order.notes ? ` — “${order.notes}”` : ''}`,
+    url: `/orders/${order.id}`,
+    tag: `order-${order.id}`,
+  });
+}

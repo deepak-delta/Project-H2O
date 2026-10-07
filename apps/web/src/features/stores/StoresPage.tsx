@@ -12,6 +12,7 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { useMoney } from '../../hooks/useMoney';
 import { errorMessage } from '../../services/api';
 import { formatPhone } from '@wd/shared';
+import { useSession } from '../auth/session';
 import { useStores, type StoreFilter } from './api';
 import { StoreSearchBox } from './StorePicker';
 
@@ -23,11 +24,16 @@ const FILTERS: { value: StoreFilter; label: string }[] = [
 ];
 
 export default function StoresPage() {
+  // Staff can't add stores or see inactive ones.
+  const isOwner = useSession().user.role === 'SUPPLIER';
   const [search, setSearch] = useState('');
   const [params, setParams] = useSearchParams();
   const fromUrl = params.get('filter');
-  const filter: StoreFilter = FILTERS.some((f) => f.value === fromUrl) ? (fromUrl as StoreFilter) : 'all';
-  const setFilter = (value: StoreFilter) => setParams(value === 'all' ? {} : { filter: value }, { replace: true });
+  const filter: StoreFilter = FILTERS.some((f) => f.value === fromUrl)
+    ? (fromUrl as StoreFilter)
+    : 'all';
+  const setFilter = (value: StoreFilter) =>
+    setParams(value === 'all' ? {} : { filter: value }, { replace: true });
   const debounced = useDebounce(search.trim());
   const stores = useStores({ search: debounced, filter });
   const format = useMoney();
@@ -38,19 +44,26 @@ export default function StoresPage() {
       <PageHeader
         title="Stores"
         action={
-          <Link
-            to="/stores/new"
-            className="flex h-11 items-center gap-1.5 rounded-xl px-3 font-semibold text-brand-700 hover:bg-brand-50"
-          >
-            <Plus className="size-5" aria-hidden />
-            Add
-          </Link>
+          !isOwner ? undefined : (
+            <Link
+              to="/stores/new"
+              className="flex h-11 items-center gap-1.5 rounded-xl px-3 font-semibold text-brand-700 hover:bg-brand-50"
+            >
+              <Plus className="size-5" aria-hidden />
+              Add
+            </Link>
+          )
         }
       />
       <PageBody>
         <div className="flex flex-col gap-3">
           <StoreSearchBox value={search} onChange={setSearch} />
-          <FilterChips label="Filter stores" value={filter} onChange={setFilter} options={FILTERS} />
+          <FilterChips
+            label="Filter stores"
+            value={filter}
+            onChange={setFilter}
+            options={isOwner ? FILTERS : FILTERS.filter((f) => f.value !== 'inactive')}
+          />
         </div>
 
         {stores.isPending ? (
@@ -71,10 +84,19 @@ export default function StoresPage() {
                       ? 'No inactive stores'
                       : 'No stores yet'
             }
-            description={!debounced && filter === 'all' ? 'Add the shops you deliver water to.' : undefined}
+            description={
+              !debounced && filter === 'all'
+                ? isOwner
+                  ? 'Add the shops you deliver water to.'
+                  : 'The owner adds the stores you deliver to.'
+                : undefined
+            }
             action={
-              !debounced && filter === 'all' ? (
-                <Link to="/stores/new" className="inline-flex h-11 items-center rounded-xl bg-brand-700 px-4 font-semibold text-white">
+              isOwner && !debounced && filter === 'all' ? (
+                <Link
+                  to="/stores/new"
+                  className="inline-flex h-11 items-center rounded-xl bg-brand-700 px-4 font-semibold text-white"
+                >
                   Add store
                 </Link>
               ) : undefined
@@ -89,7 +111,11 @@ export default function StoresPage() {
                   to={`/stores/${s.id}`}
                   title={s.name}
                   subtitle={
-                    [s.ownerName, s.phone ? formatPhone(s.phone) : null, s.cansOutstanding ? `${s.cansOutstanding} cans` : null]
+                    [
+                      s.ownerName,
+                      s.phone ? formatPhone(s.phone) : null,
+                      s.cansOutstanding ? `${s.cansOutstanding} cans` : null,
+                    ]
                       .filter(Boolean)
                       .join(' · ') || undefined
                   }
@@ -97,7 +123,11 @@ export default function StoresPage() {
                 />
               ))}
             </ListCard>
-            <LoadMore hasMore={Boolean(stores.hasNextPage)} loading={stores.isFetchingNextPage} onLoad={() => void stores.fetchNextPage()} />
+            <LoadMore
+              hasMore={Boolean(stores.hasNextPage)}
+              loading={stores.isFetchingNextPage}
+              onLoad={() => void stores.fetchNextPage()}
+            />
           </>
         )}
       </PageBody>

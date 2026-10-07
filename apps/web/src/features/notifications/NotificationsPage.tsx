@@ -15,6 +15,7 @@ const pushStateKey = ['push-state'] as const;
 const WHAT_YOU_GET = {
   SUPPLIER: ['New orders from stores', 'Orders a store cancels', 'When filled cans are running low'],
   STORE: ['Order accepted and on the way', 'Deliveries, with your new balance', 'Payments received', 'Payment reminders'],
+  STAFF: ['Orders the owner gives you to deliver'],
 } as const;
 
 export default function NotificationsPage() {

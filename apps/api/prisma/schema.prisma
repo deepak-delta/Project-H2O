@@ -20,6 +20,8 @@ datasource db {
 enum Role {
   SUPPLIER
   STORE
+  /// Delivery staff added by the owner: records today's work, sees only their own day.
+  STAFF
 }
 
 enum StoreStatus {
@@ -146,6 +148,7 @@ model User {
   storesCreated    Store[]             @relation("StoreCreatedBy")
   productsCreated  Product[]           @relation("ProductCreatedBy")
   ordersCreated    Order[]             @relation("OrderCreatedBy")
+  ordersAssigned   Order[]             @relation("OrderAssignedTo")
   deliveriesMade   Delivery[]          @relation("DeliveryBy")
   movementsCreated InventoryMovement[] @relation("MovementCreatedBy")
   ledgerCreated    LedgerEntry[]       @relation("LedgerCreatedBy")
@@ -358,12 +361,15 @@ model Order {
   cancelledAt  DateTime?
   cancelReason String?
   createdById  String
+  /// Staff member the owner gave this order to; they deliver it. Null = owner handles it.
+  assignedToId String?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
   supplier   Supplier            @relation(fields: [supplierId], references: [id])
   store      Store               @relation(fields: [storeId], references: [id])
   createdBy  User                @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  assignedTo User?               @relation("OrderAssignedTo", fields: [assignedToId], references: [id])
   items      OrderItem[]
   deliveries Delivery[]
   movements  InventoryMovement[]
@@ -375,6 +381,7 @@ model Order {
   @@index([supplierId, status, deliveryDate])
   @@index([supplierId, storeId, orderDate])
   @@index([supplierId, orderDate])
+  @@index([supplierId, assignedToId, status])
 }
 
 model OrderItem {

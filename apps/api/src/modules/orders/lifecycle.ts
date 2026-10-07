@@ -9,7 +9,7 @@ import {
   type QuickSaleResult,
 } from '@wd/shared';
 import type { z } from 'zod';
-import type { AuthContext, SupplierContext } from '../../lib/auth-context';
+import type { OperatorContext, StoreContext, SupplierContext } from '../../lib/auth-context';
 import { audit } from '../../lib/audit';
 import { getBusinessSettings } from '../../lib/business';
 import type { Db } from '../../lib/db';
@@ -27,7 +27,7 @@ const OPEN = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'] as const;
 const isOpen = (status: string) => (OPEN as readonly string[]).includes(status);
 
 /** A store asks for water (or the supplier notes a phone order). No money or stock moves yet. */
-export async function placeOrder(db: Db, auth: AuthContext, input: z.output<typeof placeOrderSchema>): Promise<{ order: OrderDto; replayed: boolean }> {
+export async function placeOrder(db: Db, auth: SupplierContext | StoreContext, input: z.output<typeof placeOrderSchema>): Promise<{ order: OrderDto; replayed: boolean }> {
   const storeId = auth.role === 'STORE' ? auth.storeId : input.storeId;
   if (!storeId) throw validationError('Choose a store.', { storeId: 'Choose a store' });
 
@@ -99,7 +99,7 @@ export async function placeOrder(db: Db, auth: AuthContext, input: z.output<type
 /** Delivers an open (or partly delivered) order: full or partial, with empties and payment. */
 export async function deliverOrder(
   db: Db,
-  auth: SupplierContext,
+  auth: OperatorContext,
   orderId: string,
   input: z.output<typeof deliverOrderSchema>,
 ): Promise<QuickSaleResult> {
@@ -113,7 +113,8 @@ export async function deliverOrder(
             where: { id: orderId, supplierId: auth.supplierId },
             include: { items: { include: { product: true } }, store: true },
           });
-          if (!order) throw notFound('Order');
+          // Staff deliver only the orders the owner gave them.
+          if (!order || (auth.role === 'STAFF' && order.assignedToId !== auth.userId)) throw notFound('Order');
           if (!isOpen(order.status) && order.status !== 'PARTIALLY_DELIVERED') {
             throw conflict(order.status === 'CANCELLED' ? 'This order was cancelled.' : 'This order is already delivered.');
           }
@@ -179,7 +180,7 @@ export async function changeOrderStatus(
  */
 export async function cancelOrder(
   db: Db,
-  auth: AuthContext,
+  auth: SupplierContext | StoreContext,
   orderId: string,
   input: z.output<typeof cancelOrderSchema>,
 ): Promise<OrderDto> {

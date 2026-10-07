@@ -45,7 +45,8 @@ export default function OrdersPage() {
         : tab === 'today'
           ? formatTime(o.orderDate, tz)
           : formatDateTime(o.orderDate, tz);
-    return `#${o.orderNumber} · ${o.totalQuantity} can${o.totalQuantity === 1 ? '' : 's'} · ${when}`;
+    const who = isSupplier && o.assignedTo && OPEN.includes(o.status) ? ` · ${o.assignedTo.name}` : '';
+    return `#${o.orderNumber} · ${o.totalQuantity} can${o.totalQuantity === 1 ? '' : 's'} · ${when}${who}`;
   };
 
   return (

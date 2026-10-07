@@ -1,4 +1,10 @@
-import { formatPhone, toMinor, type LedgerType, type MovementType, type StoreDetail } from '@wd/shared';
+import {
+  formatPhone,
+  toMinor,
+  type LedgerType,
+  type MovementType,
+  type StoreDetail,
+} from '@wd/shared';
 import { Bell, CloudUpload, Pencil, Phone, Plus, Undo2, Wallet } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -19,6 +25,7 @@ import { toast } from '../../stores/toast';
 import { formatDate, formatDateTime } from '../../utils/format';
 import { useSendReminder, useSetStoreStatus, useStore, useStoreCans, useStoreLedger } from './api';
 import { usePendingForStore } from '../../offline/engine';
+import { useSession } from '../auth/session';
 import { StoreAccessCard } from './StoreAccess';
 import { CollectEmptiesSheet, RecordPaymentSheet } from './StoreSheets';
 
@@ -59,7 +66,19 @@ export default function StoreDetailPage() {
   return <StoreLedgerView store={store.data} />;
 }
 
-function ActionButton({ icon, label, onClick, to, href }: { icon: ReactNode; label: string; onClick?: () => void; to?: string; href?: string }) {
+function ActionButton({
+  icon,
+  label,
+  onClick,
+  to,
+  href,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick?: () => void;
+  to?: string;
+  href?: string;
+}) {
   const cls =
     'flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border border-line bg-surface px-1 text-[13px] font-medium text-ink-2 hover:bg-canvas active:bg-line/50';
   const body = (
@@ -68,8 +87,18 @@ function ActionButton({ icon, label, onClick, to, href }: { icon: ReactNode; lab
       {label}
     </>
   );
-  if (to) return <Link to={to} className={cls}>{body}</Link>;
-  if (href) return <a href={href} className={cls}>{body}</a>;
+  if (to)
+    return (
+      <Link to={to} className={cls}>
+        {body}
+      </Link>
+    );
+  if (href)
+    return (
+      <a href={href} className={cls}>
+        {body}
+      </a>
+    );
   return (
     <button type="button" onClick={onClick} className={cls}>
       {body}
@@ -87,38 +116,54 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
   const setStatus = useSetStoreStatus(store.id);
   const active = store.status === 'ACTIVE';
   const pending = usePendingForStore(store.id);
+  // Staff get the store's balance and the actions they need on the route; no history, editing,
+  // app access or reminders (those are the owner's).
+  const isOwner = useSession().user.role === 'SUPPLIER';
 
   return (
     <>
       <PageHeader
         title={store.name}
-        subtitle={[store.ownerName, store.phone ? formatPhone(store.phone) : null].filter(Boolean).join(' · ') || undefined}
+        subtitle={
+          [store.ownerName, store.phone ? formatPhone(store.phone) : null]
+            .filter(Boolean)
+            .join(' · ') || undefined
+        }
         back="/stores"
         action={
-          <Link
-            to={`/stores/${store.id}/edit`}
-            aria-label="Edit store"
-            className="flex size-11 items-center justify-center rounded-full text-ink-2 hover:bg-line/50"
-          >
-            <Pencil className="size-5" />
-          </Link>
+          !isOwner ? undefined : (
+            <Link
+              to={`/stores/${store.id}/edit`}
+              aria-label="Edit store"
+              className="flex size-11 items-center justify-center rounded-full text-ink-2 hover:bg-line/50"
+            >
+              <Pencil className="size-5" />
+            </Link>
+          )
         }
       />
       <PageBody>
         {!active ? (
           <Card className="flex items-center justify-between gap-3 border-warn/30 bg-warn-bg px-4 py-3">
             <span className="text-sm font-medium text-warn">This store is inactive.</span>
-            <Button variant="secondary" onClick={() => setStatus.mutate('ACTIVE')} loading={setStatus.isPending}>
+            <Button
+              variant="secondary"
+              onClick={() => setStatus.mutate('ACTIVE')}
+              loading={setStatus.isPending}
+            >
               Reactivate
             </Button>
           </Card>
         ) : null}
 
         {pending.length > 0 ? (
-          <Link to="/sync" className="flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+          <Link
+            to="/sync"
+            className="flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800"
+          >
             <CloudUpload className="size-4 shrink-0" aria-hidden />
-            {pending.length} entr{pending.length === 1 ? 'y' : 'ies'} for this store {pending.length === 1 ? 'is' : 'are'} waiting to
-            sync and not included below yet.
+            {pending.length} entr{pending.length === 1 ? 'y' : 'ies'} for this store{' '}
+            {pending.length === 1 ? 'is' : 'are'} waiting to sync and not included below yet.
           </Link>
         ) : null}
 
@@ -129,50 +174,87 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
               <p className="mt-0.5 text-xl">
                 <BalanceText balance={store.balance} format={format} />
               </p>
-              {store.creditLimit ? <p className="text-xs text-muted">Limit {format(store.creditLimit)}</p> : null}
+              {store.creditLimit ? (
+                <p className="text-xs text-muted">Limit {format(store.creditLimit)}</p>
+              ) : null}
             </div>
             <div>
               <p className="text-[13px] text-muted">Cans with store</p>
-              <p className="mt-0.5 text-xl font-semibold text-ink tabular">{store.cansOutstanding}</p>
+              <p className="mt-0.5 text-xl font-semibold text-ink tabular">
+                {store.cansOutstanding}
+              </p>
               {store.cans.length > 1 ? (
-                <p className="truncate text-xs text-muted">{store.cans.map((c) => `${c.quantity} ${c.productName}`).join(', ')}</p>
+                <p className="truncate text-xs text-muted">
+                  {store.cans.map((c) => `${c.quantity} ${c.productName}`).join(', ')}
+                </p>
               ) : null}
             </div>
           </div>
           {store.lastDeliveryAt ? (
-            <p className="mt-3 text-xs text-muted">Last delivery {formatDate(store.lastDeliveryAt)}</p>
+            <p className="mt-3 text-xs text-muted">
+              Last delivery {formatDate(store.lastDeliveryAt)}
+            </p>
           ) : null}
         </Card>
 
         <div className="grid grid-cols-4 gap-2">
-          {active ? <ActionButton icon={<Plus className="size-5" />} label="Order" to={`/orders/new?storeId=${store.id}`} /> : null}
-          <ActionButton icon={<Wallet className="size-5" />} label="Payment" onClick={() => setPaying(true)} />
-          {store.cans.length > 0 ? (
-            <ActionButton icon={<Undo2 className="size-5" />} label="Empties" onClick={() => setCollecting(true)} />
+          {active ? (
+            <ActionButton
+              icon={<Plus className="size-5" />}
+              label="Order"
+              to={`/orders/new?storeId=${store.id}`}
+            />
           ) : null}
-          {store.phone ? <ActionButton icon={<Phone className="size-5" />} label="Call" href={`tel:${store.phone}`} /> : null}
+          <ActionButton
+            icon={<Wallet className="size-5" />}
+            label="Payment"
+            onClick={() => setPaying(true)}
+          />
+          {store.cans.length > 0 ? (
+            <ActionButton
+              icon={<Undo2 className="size-5" />}
+              label="Empties"
+              onClick={() => setCollecting(true)}
+            />
+          ) : null}
+          {store.phone ? (
+            <ActionButton
+              icon={<Phone className="size-5" />}
+              label="Call"
+              href={`tel:${store.phone}`}
+            />
+          ) : null}
         </div>
 
-        {store.hasLogin && toMinor(store.balance) > 0 ? <ReminderButton store={store} /> : null}
+        {isOwner && store.hasLogin && toMinor(store.balance) > 0 ? (
+          <ReminderButton store={store} />
+        ) : null}
 
-        <Segmented
-          label="History"
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: 'money', label: 'Money' },
-            { value: 'cans', label: 'Cans' },
-          ]}
-        />
-        {tab === 'money' ? <MoneyHistory storeId={store.id} /> : <CanHistory storeId={store.id} />}
+        {isOwner ? (
+          <>
+            <Segmented
+              label="History"
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: 'money', label: 'Money' },
+                { value: 'cans', label: 'Cans' },
+              ]}
+            />
+            {tab === 'money' ? (
+              <MoneyHistory storeId={store.id} />
+            ) : (
+              <CanHistory storeId={store.id} />
+            )}
 
+            <StoreAccessCard store={store} />
 
-        <StoreAccessCard store={store} />
-
-        {active ? (
-          <Button variant="dangerGhost" block onClick={() => setConfirmStatus(true)}>
-            Deactivate store
-          </Button>
+            {active ? (
+              <Button variant="dangerGhost" block onClick={() => setConfirmStatus(true)}>
+                Deactivate store
+              </Button>
+            ) : null}
+          </>
         ) : null}
       </PageBody>
 
@@ -207,9 +289,18 @@ export function MoneyHistory({ storeId }: { storeId: string }) {
   const rows = ledger.data?.pages.flatMap((p) => p.items) ?? [];
 
   if (ledger.isPending) return <ListSkeleton rows={4} />;
-  if (ledger.isError) return <ErrorRetry message={errorMessage(ledger.error)} onRetry={() => void ledger.refetch()} />;
+  if (ledger.isError)
+    return (
+      <ErrorRetry message={errorMessage(ledger.error)} onRetry={() => void ledger.refetch()} />
+    );
   if (rows.length === 0) {
-    return <EmptyState icon={<Wallet className="size-6" />} title="No transactions yet" description="Deliveries and payments will show here." />;
+    return (
+      <EmptyState
+        icon={<Wallet className="size-6" />}
+        title="No transactions yet"
+        description="Deliveries and payments will show here."
+      />
+    );
   }
 
   return (
@@ -224,8 +315,18 @@ export function MoneyHistory({ storeId }: { storeId: string }) {
               title={
                 <>
                   {LEDGER_LABEL[r.type]}
-                  {r.orderNumber ? (r.type === 'SALE' ? ` #${r.orderNumber}` : ` · order #${r.orderNumber}`) : ''}
-                  {r.paymentMethod ? <span className="font-normal text-muted"> · {r.paymentMethod === 'BANK_TRANSFER' ? 'Bank' : r.paymentMethod.toLowerCase()}</span> : null}
+                  {r.orderNumber
+                    ? r.type === 'SALE'
+                      ? ` #${r.orderNumber}`
+                      : ` · order #${r.orderNumber}`
+                    : ''}
+                  {r.paymentMethod ? (
+                    <span className="font-normal text-muted">
+                      {' '}
+                      ·{' '}
+                      {r.paymentMethod === 'BANK_TRANSFER' ? 'Bank' : r.paymentMethod.toLowerCase()}
+                    </span>
+                  ) : null}
                 </>
               }
               subtitle={`${formatDateTime(r.occurredAt, tz)} · balance ${format(r.balanceAfter)}`}
@@ -239,7 +340,11 @@ export function MoneyHistory({ storeId }: { storeId: string }) {
           );
         })}
       </ListCard>
-      <LoadMore hasMore={Boolean(ledger.hasNextPage)} loading={ledger.isFetchingNextPage} onLoad={() => void ledger.fetchNextPage()} />
+      <LoadMore
+        hasMore={Boolean(ledger.hasNextPage)}
+        loading={ledger.isFetchingNextPage}
+        onLoad={() => void ledger.fetchNextPage()}
+      />
     </>
   );
 }
@@ -250,7 +355,8 @@ export function CanHistory({ storeId }: { storeId: string }) {
   const rows = cans.data?.pages.flatMap((p) => p.items) ?? [];
 
   if (cans.isPending) return <ListSkeleton rows={4} />;
-  if (cans.isError) return <ErrorRetry message={errorMessage(cans.error)} onRetry={() => void cans.refetch()} />;
+  if (cans.isError)
+    return <ErrorRetry message={errorMessage(cans.error)} onRetry={() => void cans.refetch()} />;
   if (rows.length === 0) {
     return <EmptyState icon={<Undo2 className="size-6" />} title="No can movements yet" />;
   }
@@ -276,7 +382,11 @@ export function CanHistory({ storeId }: { storeId: string }) {
           />
         ))}
       </ListCard>
-      <LoadMore hasMore={Boolean(cans.hasNextPage)} loading={cans.isFetchingNextPage} onLoad={() => void cans.fetchNextPage()} />
+      <LoadMore
+        hasMore={Boolean(cans.hasNextPage)}
+        loading={cans.isFetchingNextPage}
+        onLoad={() => void cans.fetchNextPage()}
+      />
     </>
   );
 }
@@ -295,7 +405,9 @@ function ReminderButton({ store }: { store: StoreDetail }) {
           onSuccess: ({ sent }) =>
             sent > 0
               ? toast.success(`Reminder for ${format(store.balance)} sent to ${store.name}.`)
-              : toast.info(`${store.name} hasn't turned on notifications. Try calling or WhatsApp.`),
+              : toast.info(
+                  `${store.name} hasn't turned on notifications. Try calling or WhatsApp.`,
+                ),
           onError: (err) => toast.error(errorMessage(err)),
         })
       }

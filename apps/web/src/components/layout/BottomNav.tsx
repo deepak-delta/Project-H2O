@@ -4,6 +4,7 @@ import {
   Ellipsis,
   House,
   Plus,
+  Receipt,
   Store,
   User,
   Wallet,
@@ -32,8 +33,17 @@ const SUPPLIER_RIGHT: NavItem[] = [
     to: '/more',
     label: 'More',
     icon: Ellipsis,
-    activeFor: ['/inventory', '/reports', '/payments', '/cashflow', '/products', '/settings'],
+    activeFor: ['/inventory', '/reports', '/payments', '/cashflow', '/products', '/settings', '/staff'],
   },
+];
+// Delivery staff: same centred "+" (new delivery); everything else is about today.
+const STAFF_LEFT: NavItem[] = [
+  { to: '/', label: 'Today', icon: House },
+  { to: '/stores', label: 'Stores', icon: Store },
+];
+const STAFF_RIGHT: NavItem[] = [
+  { to: '/expenses', label: 'Expenses', icon: Receipt },
+  { to: '/more', label: 'More', icon: Ellipsis, activeFor: ['/settings'] },
 ];
 const STORE_ITEMS: NavItem[] = [
   { to: '/', label: 'Home', icon: House },
@@ -84,15 +94,15 @@ export function BottomNav({ role }: { role: Role }) {
     >
       <div className="mx-auto flex max-w-xl items-stretch px-1 lg:h-full lg:max-w-none lg:flex-col lg:gap-1 lg:px-3">
         <p className="hidden px-3 pb-4 text-lg font-semibold text-brand-700 lg:order-[-2] lg:block">Water Delivery</p>
-        {role === 'SUPPLIER' ? (
+        {role === 'SUPPLIER' || role === 'STAFF' ? (
           <>
-            {SUPPLIER_LEFT.map((item) => (
+            {(role === 'STAFF' ? STAFF_LEFT : SUPPLIER_LEFT).map((item) => (
               <Tab key={item.to} item={item} />
             ))}
             <div className="flex flex-1 items-center justify-center lg:order-[-1] lg:mb-3 lg:flex-none">
               <Link
                 to="/orders/new"
-                aria-label="New order"
+                aria-label={role === 'STAFF' ? 'New delivery' : 'New order'}
                 className={cn(
                   'flex size-13 -translate-y-3 items-center justify-center rounded-2xl bg-brand-700 text-white shadow-md shadow-brand-700/25',
                   'transition-colors hover:bg-brand-800 active:bg-brand-800',
@@ -100,10 +110,10 @@ export function BottomNav({ role }: { role: Role }) {
                 )}
               >
                 <Plus className="size-7 lg:size-5" strokeWidth={2.25} aria-hidden />
-                <span className="hidden font-semibold lg:inline">New order</span>
+                <span className="hidden font-semibold lg:inline">{role === 'STAFF' ? 'New delivery' : 'New order'}</span>
               </Link>
             </div>
-            {SUPPLIER_RIGHT.map((item) => (
+            {(role === 'STAFF' ? STAFF_RIGHT : SUPPLIER_RIGHT).map((item) => (
               <Tab key={item.to} item={item} />
             ))}
           </>

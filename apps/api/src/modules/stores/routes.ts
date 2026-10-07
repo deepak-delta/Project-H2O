@@ -1,4 +1,5 @@
 import {
+  canCountSchema,
   canReturnSchema,
   createStoreSchema,
   fromMinor,
@@ -32,7 +33,7 @@ import { resolveOccurredAt } from '../../lib/occurred-at';
 import { decodeCursor, olderThan, toPage } from '../../lib/pagination';
 import { parse } from '../../lib/validate';
 import { Prisma } from '../../generated/prisma/client';
-import { storeCanBalances } from '../inventory/stock';
+import { lockProductStock, storeCanBalances } from '../inventory/stock';
 import { latestPrices, setStorePrices, storePriceDtos } from '../prices/prices';
 import { storeBalanceMinor } from '../ledger/balance';
 import { hashPin } from '../auth/pin';
@@ -490,6 +491,62 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
   });
 
   /** Empty cans picked up without a delivery. */
+  /**
+   * Owner: set the real number of cans at a client (cans already in the store + delivered −
+   * empties back). Adds an ADJUSTMENT for the difference only; the owner's own filled/empty stock
+   * is untouched because those cans were already out with the client.
+   */
+  app.put('/api/stores/:id/cans', async (req) => {
+    const auth = requireSupplier(req);
+    const { id } = parse(z.object({ id: z.string() }), req.params);
+    const input = parse(canCountSchema, req.body);
+    const store = await db.store.findFirst({ where: { id, supplierId: auth.supplierId }, select: { id: true, name: true } });
+    if (!store) throw notFound('Client');
+    const ids = input.items.map((i) => i.productId);
+    const returnable = await db.product.findMany({ where: { id: { in: ids }, supplierId: auth.supplierId, isReturnable: true }, select: { id: true } });
+    if (returnable.length !== new Set(ids).size) throw validationError('Only returnable cans are counted at a client.');
+
+    await idempotent(
+      () => db.inventoryMovement.findFirst({ where: { supplierId: auth.supplierId, clientId: input.clientId }, select: { id: true } }),
+      () =>
+        db.$transaction(async (tx) => {
+          for (const item of input.items) await lockProductStock(tx, auth.supplierId, item.productId);
+          const current = await storeCanBalances(tx, auth.supplierId, id);
+          let first = true;
+          for (const item of input.items) {
+            const before = current.get(item.productId) ?? 0;
+            const delta = item.quantity - before;
+            if (delta === 0) continue;
+            await tx.inventoryMovement.create({
+              data: {
+                supplierId: auth.supplierId,
+                productId: item.productId,
+                storeId: id,
+                type: 'ADJUSTMENT',
+                withCustomersDelta: delta,
+                reason: input.notes ?? `Cans at client corrected from ${before} to ${item.quantity}`,
+                // One retry key per request: only the first row carries it.
+                clientId: first ? input.clientId : null,
+                createdById: auth.userId,
+              },
+            });
+            first = false;
+            await audit(tx, {
+              supplierId: auth.supplierId,
+              actorId: auth.userId,
+              action: 'CLIENT_CANS_CORRECTED',
+              entity: 'Store',
+              entityId: id,
+              before: { productId: item.productId, cans: before },
+              after: { productId: item.productId, cans: item.quantity },
+            });
+          }
+          return { id };
+        }),
+    );
+    return loadStoreDetail(db, auth.supplierId, id);
+  });
+
   app.post('/api/stores/:id/can-returns', async (req, reply) => {
     const auth = requireOperator(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);

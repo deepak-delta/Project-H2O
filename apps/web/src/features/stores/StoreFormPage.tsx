@@ -1,5 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CLIENT_CATEGORIES, clientCategoryRule, createStoreFieldsSchema, formatPhone, moneySchema, type ProductDto, type StoreDetail } from '@wd/shared';
+import {
+  CLIENT_CATEGORIES,
+  clientCategoryRule,
+  createStoreFieldsSchema,
+  formatPhone,
+  moneySchema,
+  type ProductDto,
+  type StoreDetail,
+} from '@wd/shared';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
@@ -18,10 +26,18 @@ import { toast } from '../../stores/toast';
 import { useProducts } from '../catalog/api';
 import { cn } from '../../utils/cn';
 import { CLIENT_TYPE_LABEL } from './clientType';
-import { useCreateStore, usePriceSuggestions, useSetStorePrices, useStore, useUpdateStore } from './api';
+import {
+  useCreateStore,
+  usePriceSuggestions,
+  useSetStorePrices,
+  useStore,
+  useUpdateStore,
+} from './api';
 
 // Prices are collected separately (one box per product), so the form itself leaves them out.
-const storeFormSchema = createStoreFieldsSchema.omit({ prices: true }).superRefine(clientCategoryRule);
+const storeFormSchema = createStoreFieldsSchema
+  .omit({ prices: true })
+  .superRefine(clientCategoryRule);
 type FormInput = z.input<typeof storeFormSchema>;
 type FormOutput = z.output<typeof storeFormSchema>;
 
@@ -58,7 +74,9 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [priceErrors, setPriceErrors] = useState<Record<string, string>>({});
   const startingPrice = (productId: string) =>
-    (existing?.prices ?? suggestions.data ?? []).find((p) => p.productId === productId)?.price.replace(/\.00$/, '') ?? '';
+    (existing?.prices ?? suggestions.data ?? [])
+      .find((p) => p.productId === productId)
+      ?.price.replace(/\.00$/, '') ?? '';
   const priceOf = (productId: string) => prices[productId] ?? startingPrice(productId);
 
   const {
@@ -95,7 +113,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
       if (!raw && existing) continue;
       const parsed = priceSchema.safeParse(raw);
       if (parsed.success) out.push({ productId: p.id, price: parsed.data });
-      else errs[p.id] = raw ? 'Enter a price, e.g. 40' : 'Enter this client\'s price';
+      else errs[p.id] = raw ? 'Enter a price, e.g. 40' : "Enter this client's price";
     }
     setPriceErrors(errs);
     return Object.keys(errs).length ? null : out;
@@ -109,7 +127,8 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
     }
     const onError = (err: unknown) => {
       if (err instanceof ApiError && err.fields) {
-        for (const [field, message] of Object.entries(err.fields)) setError(field as keyof FormInput, { message });
+        for (const [field, message] of Object.entries(err.fields))
+          setError(field as keyof FormInput, { message });
       }
       toast.error(errorMessage(err, 'Client was not saved. Please try again.'));
     };
@@ -127,13 +146,16 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
         onError,
       });
     } else {
-      create.mutate({ ...values, prices: storePrices }, {
-        onSuccess: (store) => {
-          toast.success(`${store.name} added.`);
-          void navigate(`/stores/${store.id}`, { replace: true });
+      create.mutate(
+        { ...values, prices: storePrices },
+        {
+          onSuccess: (store) => {
+            toast.success(`${store.name} added.`);
+            void navigate(`/stores/${store.id}`, { replace: true });
+          },
+          onError,
         },
-        onError,
-      });
+      );
     }
   });
 
@@ -143,14 +165,23 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
       <form onSubmit={onSubmit} noValidate>
         <PageBody>
           <Card className="flex flex-col gap-4 p-4">
-            <Field label="Client name" autoFocus={!existing} error={errors.name?.message} {...register('name')} />
+            <Field
+              label="Client name"
+              autoFocus={!existing}
+              error={errors.name?.message}
+              {...register('name')}
+            />
             <Controller
               control={control}
               name="category"
               render={({ field }) => (
                 <div className="flex flex-col gap-1.5">
                   <span className="text-sm font-medium text-ink-2">Type of client</span>
-                  <div role="radiogroup" aria-label="Type of client" className="flex flex-wrap gap-2">
+                  <div
+                    role="radiogroup"
+                    aria-label="Type of client"
+                    className="flex flex-wrap gap-2"
+                  >
                     {CLIENT_CATEGORIES.map((c) => (
                       <button
                         key={c}
@@ -160,7 +191,9 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
                         onClick={() => field.onChange(c)}
                         className={cn(
                           'h-10 rounded-full border px-4 text-sm font-medium transition-colors',
-                          field.value === c ? 'border-brand-700 bg-brand-700 text-white' : 'border-line-strong bg-surface text-ink-2 hover:bg-canvas',
+                          field.value === c
+                            ? 'border-brand-700 bg-brand-700 text-white'
+                            : 'border-line-strong bg-surface text-ink-2 hover:bg-canvas',
                         )}
                       >
                         {CLIENT_TYPE_LABEL[c]}
@@ -193,7 +226,12 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
           />
 
           <Card className="flex flex-col gap-4 p-4">
-            <Field label="Owner name (optional)" autoComplete="off" error={errors.ownerName?.message} {...register('ownerName')} />
+            <Field
+              label="Owner name (optional)"
+              autoComplete="off"
+              error={errors.ownerName?.message}
+              {...register('ownerName')}
+            />
             <Field
               label="Phone (optional)"
               type="tel"
@@ -203,7 +241,11 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
               error={errors.phone?.message}
               {...register('phone')}
             />
-            <Field label="Address (optional)" error={errors.address?.message} {...register('address')} />
+            <Field
+              label="Address (optional)"
+              error={errors.address?.message}
+              {...register('address')}
+            />
             <Controller
               control={control}
               name="creditLimit"
@@ -220,13 +262,48 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
             <Field label="Notes (optional)" error={errors.notes?.message} {...register('notes')} />
           </Card>
 
+          {!existing && returnable.length > 0 ? (
+            <Card className="flex flex-col gap-4 p-4">
+              <div>
+                <p className="font-semibold text-ink">Cans already at this client</p>
+                <p className="text-sm text-muted">
+                  Your cans they have right now. Leave at 0 for a new client.
+                </p>
+              </div>
+              <Controller
+                control={control}
+                name="openingCans"
+                render={({ field }) => {
+                  const value = field.value ?? [];
+                  return (
+                    <>
+                      {returnable.map((p) => (
+                        <QuantityStepper
+                          key={p.id}
+                          size="md"
+                          label={p.name}
+                          value={value.find((c) => c.productId === p.id)?.quantity ?? 0}
+                          onChange={(quantity) =>
+                            field.onChange([
+                              ...value.filter((c) => c.productId !== p.id),
+                              { productId: p.id, quantity },
+                            ])
+                          }
+                        />
+                      ))}
+                    </>
+                  );
+                }}
+              />
+            </Card>
+          ) : null}
 
           {!existing ? (
             showOpening ? (
               <Card className="flex flex-col gap-4 p-4">
                 <div>
                   <p className="font-semibold text-ink">Bring over from your notebook</p>
-                  <p className="text-sm text-muted">What this client already owes and how many of your cans it has.</p>
+                  <p className="text-sm text-muted">What this client already owes you.</p>
                 </div>
                 <Controller
                   control={control}
@@ -240,28 +317,6 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
                     />
                   )}
                 />
-                <Controller
-                  control={control}
-                  name="openingCans"
-                  render={({ field }) => {
-                    const value = field.value ?? [];
-                    return (
-                      <>
-                        {returnable.map((p) => (
-                          <QuantityStepper
-                            key={p.id}
-                            size="md"
-                            label={`${p.name} at client`}
-                            value={value.find((c) => c.productId === p.id)?.quantity ?? 0}
-                            onChange={(quantity) =>
-                              field.onChange([...value.filter((c) => c.productId !== p.id), { productId: p.id, quantity }])
-                            }
-                          />
-                        ))}
-                      </>
-                    );
-                  }}
-                />
               </Card>
             ) : (
               <button
@@ -271,7 +326,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
               >
                 <span>
                   <span className="block font-medium text-ink">Already supplying this client?</span>
-                  <span className="block text-sm text-muted">Add the amount they owe and cans they have</span>
+                  <span className="block text-sm text-muted">Add the amount they already owe</span>
                 </span>
                 <ChevronRight className="size-5 text-muted" aria-hidden />
               </button>
@@ -309,7 +364,9 @@ function PricesCard({
       <div>
         <p className="font-semibold text-ink">Price for this client</p>
         <p className="text-sm text-muted">
-          {editing ? 'Changes apply to new deliveries. Past bills keep their price.' : 'What this client pays per item. Each client can have its own price.'}
+          {editing
+            ? 'Changes apply to new deliveries. Past bills keep their price.'
+            : 'What this client pays per item. Each client can have its own price.'}
         </p>
       </div>
       {products.map((p) => (

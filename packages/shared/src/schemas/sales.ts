@@ -85,6 +85,20 @@ export const canReturnSchema = z.object({
 });
 export type CanReturnInput = z.input<typeof canReturnSchema>;
 
+/**
+ * Owner sets how many cans are really at a client (e.g. cans they already had that were never
+ * entered). Recorded as a correction of the difference, never by editing history.
+ */
+export const canCountSchema = z.object({
+  clientId: clientIdSchema,
+  items: z
+    .array(z.object({ productId: z.string().min(1), quantity: quantitySchema }))
+    .min(1)
+    .max(20),
+  notes: optionalNote,
+});
+export type CanCountInput = z.input<typeof canCountSchema>;
+
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 
 export interface OrderItemDto {

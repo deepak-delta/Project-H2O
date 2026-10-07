@@ -1,6 +1,7 @@
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type {
   CanMovementDto,
+  CanCountInput,
   CanReturnInput,
   CreateStoreInput,
   LedgerEntryDto,
@@ -174,6 +175,19 @@ export function useCanReturn(storeId: string) {
       submitOrQueue<StoreDetail>({ userId: user.id, kind: 'canReturn', path: `/stores/${storeId}/can-returns`, body: input, summary }),
     onSuccess: (r: SubmitResult<StoreDetail>) => {
       if (!r.queued) invalidate();
+    },
+  });
+}
+
+/** Owner: set the real number of cans at a client (recorded as a correction). */
+export function useSetClientCans(storeId: string) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateMoneyAndStock();
+  return useMutation({
+    mutationFn: (input: CanCountInput) => api.put<StoreDetail>(`/stores/${storeId}/cans`, input),
+    onSuccess: (store) => {
+      queryClient.setQueryData(qk.store(storeId), store);
+      invalidate();
     },
   });
 }

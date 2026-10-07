@@ -183,7 +183,7 @@ export function DeliveryForm({ store, lines, title, back, headerAction, top, pen
               {tooManyEmpties ? (
                 <p className="flex items-center gap-1.5 text-sm text-warn">
                   <CircleAlert className="size-4 shrink-0" aria-hidden />
-                  More empties than this client should have. Check the count.
+                  More empties than recorded at this client. Check the count, or correct the client's cans on their page if they had cans you never entered.
                 </p>
               ) : null}
             </Card>

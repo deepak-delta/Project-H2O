@@ -10,7 +10,7 @@ import { BalanceText } from '../../components/ui/Stat';
 import { useMoney } from '../../hooks/useMoney';
 import { errorMessage } from '../../services/api';
 import { toast } from '../../stores/toast';
-import { useCanReturn, useRecordPayment } from './api';
+import { useCanReturn, useRecordPayment, useSetClientCans } from './api';
 
 const METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'CASH', label: 'Cash' },
@@ -136,6 +136,86 @@ export function CollectEmptiesSheet({ store, open, onClose }: { store: StoreDeta
           Save {total > 0 ? `${total} empt${total === 1 ? 'y' : 'ies'}` : ''}
         </Button>
       </div>
+    </Sheet>
+  );
+}
+
+/**
+ * Owner: set how many cans are really at the client (cans already there + delivered − empties
+ * back), e.g. cans they had that were never entered. Two steps: enter, then confirm the change.
+ */
+export function CorrectCansSheet({ store, open, onClose }: { store: StoreDetail; open: boolean; onClose: () => void }) {
+  const save = useSetClientCans(store.id);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [reviewing, setReviewing] = useState(false);
+  const [clientId, setClientId] = useState(() => crypto.randomUUID());
+  const countOf = (productId: string, current: number) => counts[productId] ?? current;
+  const changes = store.cans.filter((c) => countOf(c.productId, c.quantity) !== c.quantity);
+
+  const close = () => {
+    setCounts({});
+    setReviewing(false);
+    setClientId(crypto.randomUUID());
+    onClose();
+  };
+
+  const confirm = () =>
+    save.mutate(
+      { clientId, items: changes.map((c) => ({ productId: c.productId, quantity: countOf(c.productId, c.quantity) })) },
+      {
+        onSuccess: (res) => {
+          toast.success(`Cans at ${store.name} set to ${res.cansOutstanding}.`);
+          close();
+        },
+        onError: (err) => toast.error(errorMessage(err, 'Not saved. Check your connection and try again.')),
+      },
+    );
+
+  return (
+    <Sheet open={open} onClose={close} title="Correct cans at client">
+      {reviewing ? (
+        <div className="flex flex-col gap-4">
+          <p className="text-[15px] text-ink-2">Change the cans recorded at {store.name}?</p>
+          <ul className="flex flex-col gap-1 text-[15px]">
+            {changes.map((c) => (
+              <li key={c.productId} className="flex justify-between">
+                <span>{c.productName}</span>
+                <span className="font-semibold tabular">
+                  {c.quantity} → {countOf(c.productId, c.quantity)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-muted">Saved as a correction in the client's can history. Your own stock doesn't change.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="secondary" size="lg" onClick={() => setReviewing(false)} disabled={save.isPending}>
+              Go back
+            </Button>
+            <Button size="lg" loading={save.isPending} onClick={confirm}>
+              Confirm
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-muted">
+            Cans with a client = cans they already had + full cans delivered − empties collected. Change it only if the real count is
+            different, e.g. cans they had before you started using the app.
+          </p>
+          {store.cans.map((c) => (
+            <QuantityStepper
+              key={c.productId}
+              label={c.productName}
+              hint={`Recorded now: ${c.quantity}`}
+              value={countOf(c.productId, c.quantity)}
+              onChange={(v) => setCounts((prev) => ({ ...prev, [c.productId]: v }))}
+            />
+          ))}
+          <Button size="lg" block disabled={changes.length === 0} onClick={() => setReviewing(true)}>
+            Review change
+          </Button>
+        </div>
+      )}
     </Sheet>
   );
 }

@@ -28,7 +28,7 @@ import { usePendingForStore } from '../../offline/engine';
 import { useSession } from '../auth/session';
 import { clientTypeLabel } from './clientType';
 import { StoreAccessCard } from './StoreAccess';
-import { CollectEmptiesSheet, RecordPaymentSheet } from './StoreSheets';
+import { CollectEmptiesSheet, CorrectCansSheet, RecordPaymentSheet } from './StoreSheets';
 
 const LEDGER_LABEL: Record<LedgerType, string> = {
   SALE: 'Delivery',
@@ -113,6 +113,7 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
   const [tab, setTab] = useState<'money' | 'cans'>('money');
   const [paying, setPaying] = useState(false);
   const [collecting, setCollecting] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
   const [confirmStatus, setConfirmStatus] = useState(false);
   const setStatus = useSetStoreStatus(store.id);
   const active = store.status === 'ACTIVE';
@@ -180,7 +181,14 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
               ) : null}
             </div>
             <div>
-              <p className="text-[13px] text-muted">Cans with client</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[13px] text-muted">Cans with client</p>
+                {isOwner && store.cans.length > 0 ? (
+                  <button type="button" onClick={() => setCorrecting(true)} className="-my-2 h-9 px-1 text-[13px] font-semibold text-brand-700">
+                    Correct
+                  </button>
+                ) : null}
+              </div>
               <p className="mt-0.5 text-xl font-semibold text-ink tabular">
                 {store.cansOutstanding}
               </p>
@@ -261,6 +269,7 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
 
       <RecordPaymentSheet store={store} open={paying} onClose={() => setPaying(false)} />
       <CollectEmptiesSheet store={store} open={collecting} onClose={() => setCollecting(false)} />
+      {isOwner ? <CorrectCansSheet store={store} open={correcting} onClose={() => setCorrecting(false)} /> : null}
       <ConfirmSheet
         open={confirmStatus}
         title="Deactivate this client?"
@@ -373,7 +382,8 @@ export function CanHistory({ storeId }: { storeId: string }) {
                 {m.orderNumber ? ` #${m.orderNumber}` : ''}
               </>
             }
-            subtitle={`${m.productName} · ${formatDateTime(m.occurredAt, tz)}`}
+            // Corrections and cancellations say why.
+            subtitle={[m.reason, m.productName, formatDateTime(m.occurredAt, tz)].filter(Boolean).join(' · ')}
             trailing={
               <Badge tone={m.change > 0 ? 'brand' : 'ok'}>
                 {m.change > 0 ? '+' : '−'}

@@ -75,7 +75,7 @@ test.describe('supplier journey', () => {
     await expect(page.getByText('Owes ₹400').first()).toBeVisible();
     // Ledger: opening 300 → +500 → −200 → −200 = 400, and the store holds 3 cans.
     await expect(page.getByText('balance ₹800')).toBeVisible();
-    await expect(page.getByText('Cans with client').locator('..')).toContainText('3');
+    await expect(page.getByText('Cans with client').locator('../..')).toContainText('3');
 
     // Inventory: 100 − 10 filled, 20 + 7 empty, 3 with stores.
     await page.goto('/inventory');

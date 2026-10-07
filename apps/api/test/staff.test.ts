@@ -347,3 +347,49 @@ describe('client type', () => {
     expect(await names('shar')).toEqual(['Sharma house']);
   });
 });
+
+describe('cans at a client = cans already there + delivered − empties back', () => {
+  const setCans = (client: Client, storeId: string, quantity: number, clientId = randomUUID()) =>
+    client.request('PUT', `/api/stores/${storeId}/cans`, { clientId, items: [{ productId: biz.canId, quantity }] });
+
+  it('the owner can set the cans already at a client; later deliveries and empties build on it', async () => {
+    const stockBefore = (await biz.client.get('/api/inventory')).json()[0];
+    const res = await setCans(biz.client, biz.storeId, 20);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().cansOutstanding).toBe(20);
+    // The owner's own stock doesn't change: those cans were already out with the client.
+    const stockAfter = (await biz.client.get('/api/inventory')).json()[0];
+    expect(stockAfter).toMatchObject({ filled: stockBefore.filled, empty: stockBefore.empty, withCustomers: stockBefore.withCustomers + 20 });
+
+    await biz.client.post('/api/orders/quick-sale', sale(biz.storeId, [{ productId: biz.canId, quantity: 5, emptyCollected: 3 }], { amount: '0' }));
+    expect((await biz.client.get(`/api/stores/${biz.storeId}`)).json().cansOutstanding).toBe(22); // 20 + 5 − 3
+
+    // Correcting again records only the difference, with an audit entry.
+    await setCans(biz.client, biz.storeId, 18);
+    expect((await biz.client.get(`/api/stores/${biz.storeId}`)).json().cansOutstanding).toBe(18);
+    const log = await ctx.db.auditLog.findMany({ where: { action: 'CLIENT_CANS_CORRECTED' }, orderBy: { createdAt: 'asc' } });
+    expect(log.map((l) => [l.before, l.after])).toEqual([
+      [{ productId: biz.canId, cans: 0 }, { productId: biz.canId, cans: 20 }],
+      [{ productId: biz.canId, cans: 22 }, { productId: biz.canId, cans: 18 }],
+    ]);
+  });
+
+  it('a retried request does not correct twice', async () => {
+    const id = randomUUID();
+    await setCans(biz.client, biz.storeId, 10, id);
+    await biz.client.post('/api/orders/quick-sale', sale(biz.storeId, [{ productId: biz.canId, quantity: 2 }], { amount: '0' }));
+    await setCans(biz.client, biz.storeId, 10, id); // replay of the first request
+    expect((await biz.client.get(`/api/stores/${biz.storeId}`)).json().cansOutstanding).toBe(12);
+  });
+
+  it('only the owner, only their own clients and returnable cans', async () => {
+    expect((await setCans(staff, biz.storeId, 5)).statusCode).toBe(403);
+    const client = await storeUserClient(ctx.app, biz.client, biz.storeId, '9700000050');
+    expect((await setCans(client, biz.storeId, 5)).statusCode).toBe(403);
+    const other = await signupSupplier(ctx.app, { phone: '9555500040' });
+    expect((await setCans(other.client, biz.storeId, 5)).statusCode).toBe(404);
+    const crate = (await biz.client.post('/api/products', { name: 'Crate', isReturnable: false })).json().id;
+    const bad = await biz.client.request('PUT', `/api/stores/${biz.storeId}/cans`, { clientId: randomUUID(), items: [{ productId: crate, quantity: 3 }] });
+    expect(bad.statusCode).toBe(400);
+  });
+});

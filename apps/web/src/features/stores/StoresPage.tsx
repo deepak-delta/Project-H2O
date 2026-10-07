@@ -13,9 +13,10 @@ import { useMoney } from '../../hooks/useMoney';
 import { errorMessage } from '../../services/api';
 import { formatPhone } from '@wd/shared';
 import { useSession } from '../auth/session';
-import { useStores, type StoreFilter } from './api';
+import { useQueryClient } from '@tanstack/react-query';
+import { cachedStores, useStores, type StoreFilter } from './api';
 import { clientTypeLabel } from './clientType';
-import { StoreSearchBox } from './StorePicker';
+import { searchLocally, StoreSearchBox } from './StorePicker';
 
 const FILTERS: { value: StoreFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -38,7 +39,14 @@ export default function StoresPage() {
   const debounced = useDebounce(search.trim());
   const stores = useStores({ search: debounced, filter });
   const format = useMoney();
-  const items = stores.data?.pages.flatMap((p) => p.items) ?? [];
+  const queryClient = useQueryClient();
+  // Results follow every letter: instant matches from the phone until the server has answered.
+  const saved = cachedStores(queryClient);
+  const catchingUp = (search.trim() !== debounced || stores.isPlaceholderData) && saved.length > 0;
+  const items =
+    catchingUp && search.trim()
+      ? searchLocally(saved, search, filter)
+      : (stores.data?.pages.flatMap((p) => p.items) ?? []);
 
   return (
     <>

@@ -10,19 +10,29 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { useMoney } from '../../hooks/useMoney';
 import { errorMessage } from '../../services/api';
 import { useQueryClient } from '@tanstack/react-query';
-import type { StoreListItem } from '@wd/shared';
+import { toMinor, type StoreListItem } from '@wd/shared';
 import { useOnline } from '../../hooks/useOnline';
-import { cachedStores, useStores } from './api';
+import { cachedStores, useStores, type StoreFilter } from './api';
+import { clientTypeLabel } from './clientType';
 
-function searchLocally(stores: StoreListItem[], text: string): StoreListItem[] {
-  const q = text.toLowerCase();
+/**
+ * Instant search over clients already on the phone: name, owner, type or phone digits. Used
+ * on every keystroke (and offline) so results follow the typing without waiting for the server.
+ */
+export function searchLocally(stores: StoreListItem[], text: string, filter: StoreFilter = 'all'): StoreListItem[] {
+  const q = text.trim().toLowerCase();
   const digits = text.replace(/\D/g, '');
-  const active = stores.filter((s) => s.status === 'ACTIVE');
-  if (!q) return active;
-  return active.filter(
+  const inFilter = stores.filter((s) =>
+    filter === 'inactive'
+      ? s.status === 'INACTIVE'
+      : s.status === 'ACTIVE' && (filter !== 'owes' || toMinor(s.balance) > 0) && (filter !== 'cans' || s.cansOutstanding > 0),
+  );
+  if (!q) return inFilter;
+  return inFilter.filter(
     (s) =>
       s.name.toLowerCase().includes(q) ||
       (s.ownerName?.toLowerCase().includes(q) ?? false) ||
+      clientTypeLabel(s).toLowerCase().includes(q) ||
       (digits.length >= 3 && (s.phone?.includes(digits) ?? false)),
   );
 }
@@ -49,6 +59,11 @@ export function StoreSearchBox({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        // Some keyboards (e.g. English–Hindi on iPhone) hold a word as "being typed" until it is
+        // finished; follow it letter by letter anyway.
+        onCompositionUpdate={(e) => onChange(e.currentTarget.value)}
+        autoCorrect="off"
+        autoCapitalize="none"
         className="h-full w-full min-w-0 bg-transparent text-base outline-none placeholder:text-muted/70"
       />
     </label>
@@ -63,9 +78,15 @@ export function StorePicker({ onPick }: { onPick: (storeId: string) => void }) {
   const queryClient = useQueryClient();
   const stores = useStores({ search: debounced, sort: 'recent' });
   const format = useMoney();
-  // Offline: search the stores already saved on this phone instead of waiting for the server.
+  // Offline: search the clients already saved on this phone instead of waiting for the server.
   const offline = !online && !stores.data;
-  const items = offline ? searchLocally(cachedStores(queryClient), debounced) : (stores.data?.pages.flatMap((p) => p.items) ?? []);
+  // While the server is still answering for what's typed, show instant matches from the phone.
+  const saved = cachedStores(queryClient);
+  const catchingUp = (search.trim() !== debounced || stores.isPlaceholderData) && saved.length > 0;
+  const items =
+    offline || (catchingUp && search.trim())
+      ? searchLocally(saved, search)
+      : (stores.data?.pages.flatMap((p) => p.items) ?? []);
 
   return (
     <div className="flex flex-col gap-3">

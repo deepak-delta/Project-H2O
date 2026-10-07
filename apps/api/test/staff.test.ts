@@ -339,5 +339,11 @@ describe('client type', () => {
     expect(office.json()).toMatchObject({ category: 'OTHER', categoryOther: 'Office' });
     const list = (await biz.client.get('/api/stores?search=Tech')).json().items;
     expect(list[0]).toMatchObject({ category: 'OTHER', categoryOther: 'Office' });
+
+    // Search finds clients by type too, and by part of a name.
+    const names = async (q: string) => (await biz.client.get(`/api/stores?search=${q}`)).json().items.map((c: { name: string }) => c.name);
+    expect(await names('offi')).toEqual(['Tech Park']);
+    expect(await names('home')).toEqual(['Sharma house']);
+    expect(await names('shar')).toEqual(['Sharma house']);
   });
 });

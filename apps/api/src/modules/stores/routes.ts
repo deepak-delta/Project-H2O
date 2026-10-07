@@ -100,6 +100,8 @@ async function listStores(db: Db, supplierId: string, q: z.output<typeof listQue
       AND (${pattern}::text IS NULL
            OR s.name ILIKE ${pattern}
            OR s."ownerName" ILIKE ${pattern}
+           OR s."categoryOther" ILIKE ${pattern}
+           OR (s.category <> 'OTHER' AND s.category::text ILIKE ${pattern})
            OR (${phonePattern}::text IS NOT NULL AND s.phone LIKE ${phonePattern}))
       AND (${q.filter} <> 'owes' OR COALESCE(bal.balance, 0) > 0)
       AND (${q.filter} <> 'cans' OR COALESCE(cans.cans, 0) > 0)

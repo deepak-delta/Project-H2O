@@ -31,7 +31,7 @@ export function StoreSearchBox({
   value,
   onChange,
   autoFocus,
-  placeholder = 'Store, owner or phone',
+  placeholder = 'Client, owner or phone',
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -77,11 +77,11 @@ export function StorePicker({ onPick }: { onPick: (storeId: string) => void }) {
       ) : items.length === 0 ? (
         <EmptyState
           icon={<StoreIcon className="size-6" />}
-          title={debounced ? 'No matching stores' : offline ? 'No stores saved on this phone' : 'No stores yet'}
-          description={debounced ? 'Try a different name or number.' : 'Add the stores you deliver to.'}
+          title={debounced ? 'No matching clients' : offline ? 'No clients saved on this phone' : 'No clients yet'}
+          description={debounced ? 'Try a different name or number.' : 'Add the clients you deliver to.'}
           action={
             <Link to="/stores/new" className="inline-flex h-11 items-center rounded-xl bg-brand-700 px-4 font-semibold text-white">
-              Add store
+              Add client
             </Link>
           }
         />

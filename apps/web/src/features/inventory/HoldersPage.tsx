@@ -18,14 +18,14 @@ export default function HoldersPage() {
 
   return (
     <>
-      <PageHeader title="Cans with stores" subtitle={holders.data ? `${total} cans at ${holders.data.length} stores` : undefined} back="/inventory" />
+      <PageHeader title="Cans with clients" subtitle={holders.data ? `${total} cans at ${holders.data.length} clients` : undefined} back="/inventory" />
       <PageBody>
         {holders.isPending ? (
           <ListSkeleton rows={6} />
         ) : holders.isError ? (
           <ErrorRetry message={errorMessage(holders.error)} onRetry={() => void holders.refetch()} />
         ) : holders.data.length === 0 ? (
-          <EmptyState icon={<Boxes className="size-6" />} title="No cans are out with stores" />
+          <EmptyState icon={<Boxes className="size-6" />} title="No cans are out with clients" />
         ) : (
           <ListCard>
             {holders.data.map((h) => (

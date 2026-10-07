@@ -12,9 +12,18 @@ export const placeOrderSchema = z
     /** Required for suppliers; ignored for store users (always their own store). */
     storeId: z.string().min(1).optional(),
     items: z
-      .array(z.object({ productId: z.string().min(1), quantity: quantitySchema }))
+      .array(
+        z.object({
+          productId: z.string().min(1),
+          quantity: quantitySchema,
+          /** Owner only: price for a product this client has no price for yet (saved for them). */
+          unitPrice: moneySchema({ allowZero: false }).optional(),
+        }),
+      )
       .min(1, 'Add at least one product')
       .max(20),
+    /** Owner only: the member of staff who will deliver it. */
+    assignedToId: z.string().min(1).nullish(),
     /** Requested delivery day, YYYY-MM-DD in the business timezone. */
     deliveryDate: z
       .string()

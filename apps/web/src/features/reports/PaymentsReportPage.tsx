@@ -26,7 +26,7 @@ export default function PaymentsReportPage() {
   const exportCsv = () =>
     downloadCsv(
       `payments-${period.from}-to-${period.to}.csv`,
-      ['Date', 'Store', 'Method', 'Amount', 'Order', 'Reference', 'Reversed'],
+      ['Date', 'Client', 'Method', 'Amount', 'Order', 'Reference', 'Reversed'],
       rows.map((r) => [
         formatDateTime(r.paymentDate, tz),
         r.storeName,

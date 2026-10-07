@@ -26,6 +26,7 @@ import { formatDate, formatDateTime } from '../../utils/format';
 import { useSendReminder, useSetStoreStatus, useStore, useStoreCans, useStoreLedger } from './api';
 import { usePendingForStore } from '../../offline/engine';
 import { useSession } from '../auth/session';
+import { clientTypeLabel } from './clientType';
 import { StoreAccessCard } from './StoreAccess';
 import { CollectEmptiesSheet, RecordPaymentSheet } from './StoreSheets';
 
@@ -56,7 +57,7 @@ export default function StoreDetailPage() {
   if (store.isError) {
     return (
       <>
-        <PageHeader title="Store" back="/stores" />
+        <PageHeader title="Client" back="/stores" />
         <PageBody>
           <ErrorRetry message={errorMessage(store.error)} onRetry={() => void store.refetch()} />
         </PageBody>
@@ -125,7 +126,7 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
       <PageHeader
         title={store.name}
         subtitle={
-          [store.ownerName, store.phone ? formatPhone(store.phone) : null]
+          [clientTypeLabel(store), store.ownerName, store.phone ? formatPhone(store.phone) : null]
             .filter(Boolean)
             .join(' · ') || undefined
         }
@@ -134,7 +135,7 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
           !isOwner ? undefined : (
             <Link
               to={`/stores/${store.id}/edit`}
-              aria-label="Edit store"
+              aria-label="Edit client"
               className="flex size-11 items-center justify-center rounded-full text-ink-2 hover:bg-line/50"
             >
               <Pencil className="size-5" />
@@ -145,7 +146,7 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
       <PageBody>
         {!active ? (
           <Card className="flex items-center justify-between gap-3 border-warn/30 bg-warn-bg px-4 py-3">
-            <span className="text-sm font-medium text-warn">This store is inactive.</span>
+            <span className="text-sm font-medium text-warn">This client is inactive.</span>
             <Button
               variant="secondary"
               onClick={() => setStatus.mutate('ACTIVE')}
@@ -162,7 +163,7 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
             className="flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800"
           >
             <CloudUpload className="size-4 shrink-0" aria-hidden />
-            {pending.length} entr{pending.length === 1 ? 'y' : 'ies'} for this store{' '}
+            {pending.length} entr{pending.length === 1 ? 'y' : 'ies'} for this client{' '}
             {pending.length === 1 ? 'is' : 'are'} waiting to sync and not included below yet.
           </Link>
         ) : null}
@@ -179,7 +180,7 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
               ) : null}
             </div>
             <div>
-              <p className="text-[13px] text-muted">Cans with store</p>
+              <p className="text-[13px] text-muted">Cans with client</p>
               <p className="mt-0.5 text-xl font-semibold text-ink tabular">
                 {store.cansOutstanding}
               </p>
@@ -251,7 +252,7 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
 
             {active ? (
               <Button variant="dangerGhost" block onClick={() => setConfirmStatus(true)}>
-                Deactivate store
+                Deactivate client
               </Button>
             ) : null}
           </>
@@ -262,7 +263,7 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
       <CollectEmptiesSheet store={store} open={collecting} onClose={() => setCollecting(false)} />
       <ConfirmSheet
         open={confirmStatus}
-        title="Deactivate this store?"
+        title="Deactivate this client?"
         message="It will be hidden from lists and can't get new deliveries. Its history and balance are kept, and you can reactivate it any time."
         confirmLabel="Deactivate"
         loading={setStatus.isPending}

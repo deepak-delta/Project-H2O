@@ -31,7 +31,7 @@ export default function ProductsPage() {
     <>
       <PageHeader
         title="Products"
-        subtitle="Prices are set for each store, on the store's page."
+        subtitle="Prices are set for each client, on the client's page."
         back="/more"
         action={
           <Button variant="ghost" icon={<Plus className="size-5" />} onClick={() => setEditing('new')}>
@@ -123,7 +123,7 @@ export function ProductForm({ product, onDone }: { product?: ProductDto; onDone:
         name="isReturnable"
         render={({ field }) => (
           <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-ink-2">Do stores return the empty container?</span>
+            <span className="text-sm font-medium text-ink-2">Do clients return the empty container?</span>
             <Segmented
               label="Returnable"
               value={field.value ? 'yes' : 'no'}

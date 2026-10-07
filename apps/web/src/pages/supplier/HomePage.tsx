@@ -39,7 +39,7 @@ export default function SupplierHomePage() {
         ) : noProducts ? (
           <Card className="p-4">
             <p className="text-lg font-semibold text-ink">Let's set up your business</p>
-            <p className="mb-4 text-sm text-muted">Step 1 of 3: what do you deliver? You'll set each store's price when you add it.</p>
+            <p className="mb-4 text-sm text-muted">Step 1 of 3: what do you deliver? You'll set each client's price when you add it.</p>
             <ProductForm onDone={setNewProduct} />
           </Card>
         ) : noStores ? (
@@ -48,11 +48,11 @@ export default function SupplierHomePage() {
               <Store className="size-6" aria-hidden />
             </span>
             <div>
-              <p className="text-lg font-semibold text-ink">Add your first store</p>
+              <p className="text-lg font-semibold text-ink">Add your first client</p>
               <p className="text-sm text-muted">Add the shops you deliver to. You can bring over what they owe from your notebook.</p>
             </div>
             <Link to="/stores/new" className="inline-flex h-11 items-center rounded-xl bg-brand-700 px-4 font-semibold text-white">
-              Add store
+              Add client
             </Link>
           </Card>
         ) : null}
@@ -149,9 +149,9 @@ function Dashboard() {
           <Stat label="Net cash today" value={format(today.netCash)} tone={today.netCash.startsWith('-') ? 'bad' : 'default'} to="/cashflow" />
           <div className="col-span-2">
             <Stat
-              label="Outstanding with stores"
+              label="Outstanding with clients"
               value={format(money.outstanding)}
-              hint={`${money.storesOwing} ${money.storesOwing === 1 ? 'store owes' : 'stores owe'} money`}
+              hint={`${money.storesOwing} ${money.storesOwing === 1 ? 'client owes' : 'clients owe'} money`}
               tone={money.storesOwing > 0 ? 'bad' : 'default'}
               to="/stores?filter=owes"
             />
@@ -164,7 +164,7 @@ function Dashboard() {
         <Card className="grid grid-cols-3 gap-2 p-2">
           <Stat label="Filled" value={inventory.filled} tone={inventory.lowStock ? 'warn' : 'default'} to="/inventory" />
           <Stat label="Empty" value={inventory.empty} to="/inventory" />
-          <Stat label="With stores" value={inventory.withCustomers} to="/inventory/holders" />
+          <Stat label="With clients" value={inventory.withCustomers} to="/inventory/holders" />
         </Card>
       </section>
     </>

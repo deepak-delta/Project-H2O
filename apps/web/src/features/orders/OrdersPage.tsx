@@ -54,7 +54,7 @@ export default function OrdersPage() {
       <PageHeader title={isSupplier ? 'Orders' : 'My orders'} />
       <PageBody>
         <div className="flex flex-col gap-3">
-          {isSupplier ? <StoreSearchBox value={search} onChange={setSearch} placeholder="Store or order #" /> : null}
+          {isSupplier ? <StoreSearchBox value={search} onChange={setSearch} placeholder="Client or order #" /> : null}
           <FilterChips<Tab>
             label="Show orders"
             value={tab}

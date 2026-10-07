@@ -119,7 +119,7 @@ export default function LoginPage() {
             Create an account
           </Link>
         </p>
-        <p>Store owners: ask your water supplier for your login.</p>
+        <p>Clients: ask your water supplier for your login.</p>
       </div>
     </AuthLayout>
   );

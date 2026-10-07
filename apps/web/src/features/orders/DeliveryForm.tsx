@@ -51,6 +51,8 @@ interface DeliveryFormProps {
   title?: string;
   back: string | true;
   headerAction?: ReactNode;
+  /** Shown above the form, e.g. the owner's "Deliver now / For later" switch. */
+  top?: ReactNode;
   pending: boolean;
   error: string | null;
   onSubmit: (values: DeliveryValues, totals: DeliveryTotals) => void;
@@ -60,7 +62,7 @@ interface DeliveryFormProps {
  * Quantities → empties → payment → confirm, on one screen with a sticky confirm button.
  * Used for quick sales and for delivering orders that were placed earlier.
  */
-export function DeliveryForm({ store, lines, title, back, headerAction, pending, error, onSubmit }: DeliveryFormProps) {
+export function DeliveryForm({ store, lines, title, back, headerAction, top, pending, error, onSubmit }: DeliveryFormProps) {
   const format = useMoney();
   const [quantities, setQuantities] = useState<Record<string, number>>(() => Object.fromEntries(lines.map((l) => [l.productId, l.initialQty])));
   const [empties, setEmpties] = useState<Record<string, number>>({});
@@ -88,7 +90,7 @@ export function DeliveryForm({ store, lines, title, back, headerAction, pending,
     setLocalError(null);
     if (totalCans === 0) return setLocalError('Enter how many cans were delivered.');
     const missing = unpriced.find((l) => !newPriceValid(l.productId));
-    if (missing) return setLocalError(`Enter this store's price for ${missing.name}.`);
+    if (missing) return setLocalError(`Enter this client's price for ${missing.name}.`);
     if (payMode === 'other' && !otherValid) return setLocalError('Enter the amount received.');
     onSubmit(
       {
@@ -119,13 +121,14 @@ export function DeliveryForm({ store, lines, title, back, headerAction, pending,
         subtitle={
           <>
             <BalanceText balance={store.balance} format={format} className="font-medium" />
-            {store.cansOutstanding ? ` · ${store.cansOutstanding} cans with store` : ''}
+            {store.cansOutstanding ? ` · ${store.cansOutstanding} cans with client` : ''}
           </>
         }
         back={back}
         action={headerAction}
       />
       <div className="flex flex-col gap-5 px-safe pt-4 pb-40">
+        {top}
         <section>
           <SectionTitle>Delivered</SectionTitle>
           <Card className="flex flex-col gap-4 p-4">
@@ -133,14 +136,14 @@ export function DeliveryForm({ store, lines, title, back, headerAction, pending,
               <div key={l.productId} className="flex flex-col gap-2">
                 <QuantityStepper
                   label={l.name}
-                  hint={[l.unitPrice !== null ? `${format(l.unitPrice)} each` : 'No price for this store yet', l.note].filter(Boolean).join(' · ')}
+                  hint={[l.unitPrice !== null ? `${format(l.unitPrice)} each` : 'No price for this client yet', l.note].filter(Boolean).join(' · ')}
                   value={quantities[l.productId] ?? 0}
                   onChange={(v) => setQuantities((q) => ({ ...q, [l.productId]: v }))}
                 />
                 {l.unitPrice === null && (quantities[l.productId] ?? 0) > 0 ? (
                   <MoneyField
-                    label={`Price per ${l.name} for this store`}
-                    hint="Saved for this store, so you only enter it once."
+                    label={`Price per ${l.name} for this client`}
+                    hint="Saved for this client, so you only enter it once."
                     value={newPrices[l.productId] ?? ''}
                     onChange={(e) => setNewPrices((p) => ({ ...p, [l.productId]: sanitizeMoneyInput(e.target.value) }))}
                   />
@@ -161,7 +164,7 @@ export function DeliveryForm({ store, lines, title, back, headerAction, pending,
                   <div key={l.productId} className="flex flex-col gap-2">
                     <QuantityStepper
                       label={l.name}
-                      hint={`Store has ${held} can${held === 1 ? '' : 's'}`}
+                      hint={`Client has ${held} can${held === 1 ? '' : 's'}`}
                       value={empties[l.productId] ?? 0}
                       onChange={(v) => setEmpties((e) => ({ ...e, [l.productId]: v }))}
                     />
@@ -180,7 +183,7 @@ export function DeliveryForm({ store, lines, title, back, headerAction, pending,
               {tooManyEmpties ? (
                 <p className="flex items-center gap-1.5 text-sm text-warn">
                   <CircleAlert className="size-4 shrink-0" aria-hidden />
-                  More empties than this store should have. Check the count.
+                  More empties than this client should have. Check the count.
                 </p>
               ) : null}
             </Card>
@@ -222,12 +225,12 @@ export function DeliveryForm({ store, lines, title, back, headerAction, pending,
             <SummaryRow label="Received now" value={format(fromMinor(paidMinor))} />
             {totalMinor - paidMinor > 0 ? <SummaryRow label="Added to credit" value={format(fromMinor(totalMinor - paidMinor))} tone="bad" /> : null}
             <div className="my-2 border-t border-line" />
-            <SummaryRow label="Store balance after" value={<BalanceText balance={fromMinor(newBalanceMinor)} format={format} />} />
+            <SummaryRow label="Client balance after" value={<BalanceText balance={fromMinor(newBalanceMinor)} format={format} />} />
           </dl>
           {overLimit ? (
             <p className="mt-3 flex items-center gap-1.5 text-sm text-warn">
               <CircleAlert className="size-4 shrink-0" aria-hidden />
-              Over this store's credit limit of {format(store.creditLimit ?? '0')}.
+              Over this client's credit limit of {format(store.creditLimit ?? '0')}.
             </p>
           ) : null}
         </Card>
@@ -344,7 +347,7 @@ export function DeliveryDone({ result, store, primary, secondary }: DeliveryDone
             <SummaryRow label="Paid" value={format(order.amountPaid)} />
             {empties ? <SummaryRow label="Empties collected" value={String(empties)} /> : null}
             <div className="my-2 border-t border-line" />
-            <SummaryRow label="Store balance" value={<BalanceText balance={result.storeBalance} format={format} />} />
+            <SummaryRow label="Client balance" value={<BalanceText balance={result.storeBalance} format={format} />} />
           </dl>
           {order.stockWarning ? (
             <p className="mt-4 flex items-center gap-1.5 text-left text-sm text-warn">

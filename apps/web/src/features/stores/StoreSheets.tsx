@@ -112,7 +112,7 @@ export function CollectEmptiesSheet({ store, open, onClose }: { store: StoreDeta
       {
         onSuccess: (res) => {
           if (res.queued) toast.info(`${label} saved on this phone. It will sync when you're back online.`);
-          else toast.success(`${label} collected. Store now has ${res.data.cansOutstanding}.`);
+          else toast.success(`${label} collected. Client now has ${res.data.cansOutstanding}.`);
           close();
         },
         onError: (err) => toast.error(errorMessage(err, 'Not saved. Check your connection and try again.')),
@@ -127,7 +127,7 @@ export function CollectEmptiesSheet({ store, open, onClose }: { store: StoreDeta
           <QuantityStepper
             key={c.productId}
             label={c.productName}
-            hint={`Store has ${c.quantity}`}
+            hint={`Client has ${c.quantity}`}
             value={counts[c.productId] ?? 0}
             onChange={(v) => setCounts((prev) => ({ ...prev, [c.productId]: v }))}
           />

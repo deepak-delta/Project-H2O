@@ -97,7 +97,7 @@ export async function resolveLinePrices<L extends { product: { id: string; name:
     if (saved !== undefined) return { ...line, unitPrice: saved };
     if (line.quantity === 0) return { ...line, unitPrice: 0 };
     throw opts.canSetPrice
-      ? validationError(`Enter this store's price for ${line.product.name}.`, { price: 'Enter a price' })
+      ? validationError(`Enter this client's price for ${line.product.name}.`, { price: 'Enter a price' })
       : validationError(`${line.product.name} can't be ordered yet: ask your supplier to set your price.`);
   });
   await setStorePrices(tx, auth, storeId, newPrices);

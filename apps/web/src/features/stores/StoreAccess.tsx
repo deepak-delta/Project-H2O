@@ -25,7 +25,7 @@ export function StoreAccessCard({ store }: { store: StoreDetail }) {
           <Smartphone className="size-5" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-medium text-ink">Store app</p>
+          <p className="font-medium text-ink">Client app</p>
           <p className="text-sm text-muted">
             {store.hasLogin && store.loginPhone ? `On · logs in with ${formatPhone(store.loginPhone)}` : 'Let them order water from their phone'}
           </p>
@@ -47,12 +47,12 @@ export function StoreAccessCard({ store }: { store: StoreDetail }) {
         </Button>
       ) : null}
 
-      <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing === 'reset' ? 'Reset store PIN' : 'Store app access'}>
+      <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing === 'reset' ? 'Reset client PIN' : 'Client app access'}>
         {editing ? <AccessForm store={store} reset={editing === 'reset'} onDone={() => setEditing(null)} /> : null}
       </Sheet>
       <ConfirmSheet
         open={disabling}
-        title="Turn off store app?"
+        title="Turn off client app?"
         message={`${store.name} will be logged out and won't be able to log in. Their orders and history stay.`}
         confirmLabel="Turn off"
         loading={disable.isPending}
@@ -61,7 +61,7 @@ export function StoreAccessCard({ store }: { store: StoreDetail }) {
           disable.mutate(undefined, {
             onSuccess: () => {
               setDisabling(false);
-              toast.success('Store app access turned off.');
+              toast.success('Client app access turned off.');
             },
             onError: (err) => toast.error(errorMessage(err)),
           })
@@ -133,7 +133,7 @@ function AccessForm({ store, reset, onDone }: { store: StoreDetail; reset: boole
   return (
     <div className="flex flex-col gap-4">
       <Field
-        label="Store's phone number"
+        label="Client's phone number"
         type="tel"
         inputMode="tel"
         prefix="+91"
@@ -144,7 +144,7 @@ function AccessForm({ store, reset, onDone }: { store: StoreDetail; reset: boole
       <div className="flex items-end gap-2">
         <Field
           className="flex-1"
-          label="PIN for the store"
+          label="PIN for the client"
           inputMode="numeric"
           maxLength={6}
           value={pin}
@@ -155,7 +155,7 @@ function AccessForm({ store, reset, onDone }: { store: StoreDetail; reset: boole
           New
         </Button>
       </div>
-      {reset ? <p className="text-sm text-muted">The store will be logged out of every phone.</p> : null}
+      {reset ? <p className="text-sm text-muted">The client will be logged out of every phone.</p> : null}
       <Button size="lg" block loading={save.isPending} onClick={submit}>
         {reset ? 'Reset PIN' : 'Turn on'}
       </Button>

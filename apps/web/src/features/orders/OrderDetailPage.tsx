@@ -72,7 +72,7 @@ function OrderView({ order: o }: { order: OrderDto }) {
                   <CalendarDays className="size-4" aria-hidden /> Wanted {formatDate(o.deliveryDate, tz)}
                 </p>
               ) : null}
-              {o.source === 'STORE' && isSupplier ? <p className="text-sm text-muted">Ordered by the store</p> : null}
+              {o.source === 'STORE' && isSupplier ? <p className="text-sm text-muted">Ordered by the client</p> : null}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
               <OrderStatusBadge status={o.status} />

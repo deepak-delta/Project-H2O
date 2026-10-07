@@ -38,7 +38,7 @@ export default function InventoryReportPage() {
     report.data &&
     downloadCsv(
       `stock-${period.from}-to-${period.to}.csv`,
-      ['Product', 'Line', 'Filled', 'Empty', 'With stores', 'Damaged'],
+      ['Product', 'Line', 'Filled', 'Empty', 'With clients', 'Damaged'],
       report.data.products.flatMap((p) => [
         [p.productName, 'Opening', p.opening.filled, p.opening.empty, p.opening.withCustomers, p.opening.damaged],
         ...p.movements.map((m) => [p.productName, MOVEMENT_LABEL[m.type], m.filled, m.empty, m.withCustomers, m.damaged]),
@@ -69,7 +69,7 @@ export default function InventoryReportPage() {
                     </th>
                     <th scope="col" className="pb-1 text-right font-medium">Filled</th>
                     <th scope="col" className="pb-1 text-right font-medium">Empty</th>
-                    <th scope="col" className="pb-1 text-right font-medium">Stores</th>
+                    <th scope="col" className="pb-1 text-right font-medium">Clients</th>
                     <th scope="col" className="pb-1 text-right font-medium">Damaged</th>
                   </tr>
                 </thead>

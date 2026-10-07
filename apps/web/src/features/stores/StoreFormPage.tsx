@@ -1,8 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createStoreSchema, formatPhone, moneySchema, type ProductDto, type StoreDetail } from '@wd/shared';
+import { CLIENT_CATEGORIES, clientCategoryRule, createStoreFieldsSchema, formatPhone, moneySchema, type ProductDto, type StoreDetail } from '@wd/shared';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router';
 import type { z } from 'zod';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
@@ -16,10 +16,12 @@ import { PageSpinner } from '../../components/ui/Spinner';
 import { ApiError, errorMessage } from '../../services/api';
 import { toast } from '../../stores/toast';
 import { useProducts } from '../catalog/api';
+import { cn } from '../../utils/cn';
+import { CLIENT_TYPE_LABEL } from './clientType';
 import { useCreateStore, usePriceSuggestions, useSetStorePrices, useStore, useUpdateStore } from './api';
 
 // Prices are collected separately (one box per product), so the form itself leaves them out.
-const storeFormSchema = createStoreSchema.omit({ prices: true });
+const storeFormSchema = createStoreFieldsSchema.omit({ prices: true }).superRefine(clientCategoryRule);
 type FormInput = z.input<typeof storeFormSchema>;
 type FormOutput = z.output<typeof storeFormSchema>;
 
@@ -31,7 +33,7 @@ export default function StoreFormPage() {
   if (store.isError) {
     return (
       <>
-        <PageHeader title="Edit store" back={true} />
+        <PageHeader title="Edit client" back={true} />
         <PageBody>
           <ErrorRetry message={errorMessage(store.error)} onRetry={() => void store.refetch()} />
         </PageBody>
@@ -69,6 +71,8 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
     resolver: zodResolver(storeFormSchema),
     defaultValues: {
       name: existing?.name ?? '',
+      category: existing?.category ?? 'STORE',
+      categoryOther: existing?.categoryOther ?? '',
       ownerName: existing?.ownerName ?? '',
       phone: existing?.phone ? formatPhone(existing.phone) : '',
       address: existing?.address ?? '',
@@ -80,6 +84,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
   });
 
   const pending = create.isPending || update.isPending || savePrices.isPending;
+  const category = useWatch({ control, name: 'category' });
 
   /** Every product needs a price for a new store; when editing, an empty box leaves it unset. */
   const collectPrices = (): { productId: string; price: string }[] | null => {
@@ -90,7 +95,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
       if (!raw && existing) continue;
       const parsed = priceSchema.safeParse(raw);
       if (parsed.success) out.push({ productId: p.id, price: parsed.data });
-      else errs[p.id] = raw ? 'Enter a price, e.g. 40' : 'Enter this store\'s price';
+      else errs[p.id] = raw ? 'Enter a price, e.g. 40' : 'Enter this client\'s price';
     }
     setPriceErrors(errs);
     return Object.keys(errs).length ? null : out;
@@ -99,21 +104,21 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
   const onSubmit = handleSubmit((values) => {
     const storePrices = collectPrices();
     if (!storePrices) {
-      toast.error("Enter this store's price for each product.");
+      toast.error("Enter this client's price for each product.");
       return;
     }
     const onError = (err: unknown) => {
       if (err instanceof ApiError && err.fields) {
         for (const [field, message] of Object.entries(err.fields)) setError(field as keyof FormInput, { message });
       }
-      toast.error(errorMessage(err, 'Store was not saved. Please try again.'));
+      toast.error(errorMessage(err, 'Client was not saved. Please try again.'));
     };
     if (existing) {
       const { openingBalance: _ob, openingCans: _oc, ...rest } = values;
       update.mutate(rest, {
         onSuccess: () => {
           const done = () => {
-            toast.success('Store updated.');
+            toast.success('Client updated.');
             void navigate(`/stores/${existing.id}`, { replace: true });
           };
           if (storePrices.length === 0) return done();
@@ -134,11 +139,45 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
 
   return (
     <>
-      <PageHeader title={existing ? 'Edit store' : 'Add store'} back={true} />
+      <PageHeader title={existing ? 'Edit client' : 'Add client'} back={true} />
       <form onSubmit={onSubmit} noValidate>
         <PageBody>
           <Card className="flex flex-col gap-4 p-4">
-            <Field label="Store name" autoFocus={!existing} error={errors.name?.message} {...register('name')} />
+            <Field label="Client name" autoFocus={!existing} error={errors.name?.message} {...register('name')} />
+            <Controller
+              control={control}
+              name="category"
+              render={({ field }) => (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm font-medium text-ink-2">Type of client</span>
+                  <div role="radiogroup" aria-label="Type of client" className="flex flex-wrap gap-2">
+                    {CLIENT_CATEGORIES.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        role="radio"
+                        aria-checked={field.value === c}
+                        onClick={() => field.onChange(c)}
+                        className={cn(
+                          'h-10 rounded-full border px-4 text-sm font-medium transition-colors',
+                          field.value === c ? 'border-brand-700 bg-brand-700 text-white' : 'border-line-strong bg-surface text-ink-2 hover:bg-canvas',
+                        )}
+                      >
+                        {CLIENT_TYPE_LABEL[c]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            />
+            {category === 'OTHER' ? (
+              <Field
+                label="What kind of client?"
+                placeholder="e.g. Office, Hostel, Hotel"
+                error={errors.categoryOther?.message}
+                {...register('categoryOther')}
+              />
+            ) : null}
           </Card>
 
           <PricesCard
@@ -187,7 +226,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
               <Card className="flex flex-col gap-4 p-4">
                 <div>
                   <p className="font-semibold text-ink">Bring over from your notebook</p>
-                  <p className="text-sm text-muted">What this store already owes and how many of your cans it has.</p>
+                  <p className="text-sm text-muted">What this client already owes and how many of your cans it has.</p>
                 </div>
                 <Controller
                   control={control}
@@ -212,7 +251,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
                           <QuantityStepper
                             key={p.id}
                             size="md"
-                            label={`${p.name} at store`}
+                            label={`${p.name} at client`}
                             value={value.find((c) => c.productId === p.id)?.quantity ?? 0}
                             onChange={(quantity) =>
                               field.onChange([...value.filter((c) => c.productId !== p.id), { productId: p.id, quantity }])
@@ -231,7 +270,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
                 className="flex min-h-14 items-center justify-between rounded-[var(--radius-card)] border border-line bg-surface px-4 text-left"
               >
                 <span>
-                  <span className="block font-medium text-ink">Already supplying this store?</span>
+                  <span className="block font-medium text-ink">Already supplying this client?</span>
                   <span className="block text-sm text-muted">Add the amount they owe and cans they have</span>
                 </span>
                 <ChevronRight className="size-5 text-muted" aria-hidden />
@@ -240,7 +279,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
           ) : null}
 
           <Button type="submit" size="lg" block loading={pending}>
-            {existing ? 'Save changes' : 'Add store'}
+            {existing ? 'Save changes' : 'Add client'}
           </Button>
         </PageBody>
       </form>
@@ -268,9 +307,9 @@ function PricesCard({
   return (
     <Card className="flex flex-col gap-4 p-4">
       <div>
-        <p className="font-semibold text-ink">Price for this store</p>
+        <p className="font-semibold text-ink">Price for this client</p>
         <p className="text-sm text-muted">
-          {editing ? 'Changes apply to new deliveries. Past bills keep their price.' : 'What this store pays per item. Each store can have its own price.'}
+          {editing ? 'Changes apply to new deliveries. Past bills keep their price.' : 'What this client pays per item. Each client can have its own price.'}
         </p>
       </div>
       {products.map((p) => (

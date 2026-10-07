@@ -107,8 +107,9 @@ describe('order lifecycle, reversals, cash flow and reports stay within one busi
     expect((await b.client.delete(`/api/stores/${a.storeId}/login`)).statusCode).toBe(404);
 
     // A is untouched.
+    // Unchanged: still as A created it (the owner's own orders start accepted).
     const order = (await a.client.get(`/api/orders/${pendingId}`)).json();
-    expect(order.status).toBe('PENDING');
+    expect(order.status).toBe('CONFIRMED');
     expect((await a.client.get(`/api/orders/${aOrderId}`)).json().status).toBe('DELIVERED');
   });
 

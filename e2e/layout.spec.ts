@@ -20,7 +20,7 @@ test('scrolling a long screen never scrolls the page, and the bottom bar stays a
   const nav = page.getByRole('navigation', { name: 'Main' });
   await expect(nav).toBeVisible();
   // Wait for the dashboard so there is something to scroll.
-  await expect(page.getByText('With stores', { exact: true })).toBeVisible();
+  await expect(page.getByText('With clients', { exact: true })).toBeVisible();
   const bottomGap = () => nav.evaluate((el) => window.innerHeight - el.getBoundingClientRect().bottom);
 
   expect(await bottomGap()).toBe(0);

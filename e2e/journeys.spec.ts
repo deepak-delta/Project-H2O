@@ -31,22 +31,22 @@ test.describe('supplier journey', () => {
     await page.getByRole('textbox', { name: 'Filled cans' }).fill('100');
     await page.getByRole('textbox', { name: 'Empty cans' }).fill('20');
     await page.getByRole('button', { name: 'Save stock' }).click();
-    await expect(page.getByText('Add your first store')).toBeVisible();
+    await expect(page.getByText('Add your first client')).toBeVisible();
     await expectNoHorizontalScroll(page);
 
     // A store that already owes ₹300 from the paper notebook.
-    await page.getByRole('link', { name: 'Add store' }).click();
-    await page.getByLabel('Store name').fill('Sri Ganesh Stores');
+    await page.getByRole('link', { name: 'Add client' }).click();
+    await page.getByLabel('Client name').fill('Sri Ganesh Stores');
     await page.getByLabel('Owner name (optional)').fill('Ganesh');
     await page.getByLabel('Phone (optional)').fill(randomPhone());
     // This store's price is required: saving without it is refused.
-    await page.getByRole('button', { name: 'Add store' }).click();
-    await expect(page.getByText("Enter this store's price").first()).toBeVisible();
+    await page.getByRole('button', { name: 'Add client' }).click();
+    await expect(page.getByText("Enter this client's price").first()).toBeVisible();
     await page.getByLabel('Price per 20L water can').fill('50');
-    await page.getByRole('button', { name: /Already supplying this store/ }).click();
+    await page.getByRole('button', { name: /Already supplying this client/ }).click();
     await page.getByLabel('Amount they owe now').fill('300');
     await expectNoHorizontalScroll(page);
-    await page.getByRole('button', { name: 'Add store' }).click();
+    await page.getByRole('button', { name: 'Add client' }).click();
     await expect(page.getByText('Owes ₹300').first()).toBeVisible();
     await expectNoHorizontalScroll(page);
 
@@ -67,7 +67,7 @@ test.describe('supplier journey', () => {
     await expectNoHorizontalScroll(page);
 
     // Collect ₹200 more against the balance.
-    await page.getByRole('button', { name: 'View store' }).click();
+    await page.getByRole('button', { name: 'View client' }).click();
     await page.getByRole('button', { name: 'Payment' }).click();
     await page.getByLabel('Amount received').fill('200');
     await page.getByRole('button', { name: 'Save payment' }).click();
@@ -75,7 +75,7 @@ test.describe('supplier journey', () => {
     await expect(page.getByText('Owes ₹400').first()).toBeVisible();
     // Ledger: opening 300 → +500 → −200 → −200 = 400, and the store holds 3 cans.
     await expect(page.getByText('balance ₹800')).toBeVisible();
-    await expect(page.getByText('Cans with store').locator('..')).toContainText('3');
+    await expect(page.getByText('Cans with client').locator('..')).toContainText('3');
 
     // Inventory: 100 − 10 filled, 20 + 7 empty, 3 with stores.
     await page.goto('/inventory');
@@ -83,14 +83,14 @@ test.describe('supplier journey', () => {
     await expect(card).toBeVisible();
     await expect(page.getByText('Filled', { exact: true }).locator('..')).toContainText('90');
     await expect(page.getByText('Empty', { exact: true }).locator('..')).toContainText('27');
-    await expect(page.getByText('With stores', { exact: true }).first().locator('..')).toContainText('3');
+    await expect(page.getByText('With clients', { exact: true }).first().locator('..')).toContainText('3');
     await expectNoHorizontalScroll(page);
 
     // Dashboard totals.
     await page.goto('/');
     await expect(page.getByText('Sales', { exact: true }).locator('..')).toContainText('₹500');
     await expect(page.getByText('Collected today').locator('..')).toContainText('₹400');
-    await expect(page.getByText('Outstanding with stores').locator('..')).toContainText('₹400');
+    await expect(page.getByText('Outstanding with clients').locator('..')).toContainText('₹400');
     await expectNoHorizontalScroll(page);
 
     assertNoErrors();

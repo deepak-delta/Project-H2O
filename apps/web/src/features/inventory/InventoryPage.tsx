@@ -31,7 +31,7 @@ function describe(m: MovementDto): string {
   const fmt = (n: number, what: string) => `${n > 0 ? '+' : '−'}${Math.abs(n)} ${what}`;
   if (m.filledDelta) parts.push(fmt(m.filledDelta, 'filled'));
   if (m.emptyDelta) parts.push(fmt(m.emptyDelta, 'empty'));
-  if (m.withCustomersDelta && m.type !== 'DELIVERY' && m.type !== 'RETURN') parts.push(fmt(m.withCustomersDelta, 'at stores'));
+  if (m.withCustomersDelta && m.type !== 'DELIVERY' && m.type !== 'RETURN') parts.push(fmt(m.withCustomersDelta, 'at clients'));
   if (m.damagedDelta) parts.push(fmt(m.damagedDelta, 'damaged'));
   return parts.join(', ');
 }
@@ -71,7 +71,7 @@ export default function InventoryPage() {
               <div className="grid grid-cols-2 gap-2">
                 <Stat label="Filled" value={p.filled} tone={p.filled < 0 ? 'bad' : 'default'} />
                 <Stat label="Empty" value={p.empty} tone={p.empty < 0 ? 'bad' : 'default'} />
-                {p.isReturnable ? <Stat label="With stores" value={p.withCustomers} to="/inventory/holders" /> : null}
+                {p.isReturnable ? <Stat label="With clients" value={p.withCustomers} to="/inventory/holders" /> : null}
                 {p.isReturnable ? <Stat label="Damaged" value={p.damaged} /> : null}
               </div>
               {p.filled < 0 || p.empty < 0 ? (
@@ -94,7 +94,7 @@ export default function InventoryPage() {
 
         <section>
           <SectionTitle action={<Link to="/inventory/holders" className="text-sm font-semibold text-brand-700">See all</Link>}>
-            Cans with stores
+            Cans with clients
           </SectionTitle>
           {holders.isPending ? (
             <ListSkeleton rows={3} />
@@ -105,7 +105,7 @@ export default function InventoryPage() {
               ))}
             </ListCard>
           ) : (
-            <Card className="px-4 py-3.5 text-sm text-muted">No cans are out with stores.</Card>
+            <Card className="px-4 py-3.5 text-sm text-muted">No cans are out with clients.</Card>
           )}
         </section>
 

@@ -8,12 +8,12 @@ test('a product the store has no price for asks for it once, on the first delive
   await api(page.request, 'POST', '/api/inventory/movements', { kind: 'OPENING', clientId: crypto.randomUUID(), productId: crate.id, filled: 20, empty: 0 });
 
   await page.goto(`/orders/new?storeId=${storeId}`);
-  await expect(page.getByText('No price for this store yet')).toBeVisible();
+  await expect(page.getByText('No price for this client yet')).toBeVisible();
   await page.getByRole('textbox', { name: 'Bottle crate' }).fill('2');
   await page.getByRole('button', { name: /Confirm delivery/ }).click();
-  await expect(page.getByText("Enter this store's price for Bottle crate.")).toBeVisible();
+  await expect(page.getByText("Enter this client's price for Bottle crate.")).toBeVisible();
 
-  await page.getByLabel('Price per Bottle crate for this store').fill('120');
+  await page.getByLabel('Price per Bottle crate for this client').fill('120');
   await expectNoHorizontalScroll(page);
   await page.getByRole('button', { name: /Confirm delivery · ₹240/ }).click();
   await expect(page.getByText(/Order #1 · Sri Ganesh Stores/)).toBeVisible();

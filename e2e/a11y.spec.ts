@@ -33,7 +33,7 @@ test('supplier screens', async ({ page }) => {
     ['home', '/', 'Today'],
     ['new order', `/orders/new?storeId=${storeId}`, 'Delivered'],
     ['orders', '/orders?tab=all', 'Orders'],
-    ['stores', '/stores', 'Stores'],
+    ['clients', '/stores', 'Clients'],
     ['store ledger', `/stores/${storeId}`, 'Balance'],
     ['inventory', '/inventory', 'Inventory'],
     ['reports', '/reports', 'Reports'],

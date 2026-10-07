@@ -67,8 +67,8 @@ test('delivery staff: sees only their day, delivers the order given to them, han
   await expect(phone.getByText('Balance', { exact: true })).toBeVisible();
   await expect(phone.getByRole('button', { name: 'Payment' })).toBeVisible();
   await expect(phone.getByRole('radio', { name: 'Money' })).toHaveCount(0);
-  await expect(phone.getByLabel('Edit store')).toHaveCount(0);
-  await expect(phone.getByText('Store app')).toHaveCount(0);
+  await expect(phone.getByLabel('Edit client')).toHaveCount(0);
+  await expect(phone.getByText('Client app')).toHaveCount(0);
   await expectAccessible(phone);
 
   // Owner-only screens don't exist for staff.
@@ -105,5 +105,58 @@ test("the owner's dashboard updates by itself when staff deliver", async ({ page
 
   // Within one check (every 10 seconds), with no reload.
   await expect(sales).toContainText('₹150', { timeout: 15_000 });
+  await staffSide.close();
+});
+
+test('owner adds an "Other" client, then creates an order for later and gives it to staff', async ({ page, browser }) => {
+  await setupSupplier(page.request);
+  const staffPhone = randomPhone();
+  await api(page.request, 'POST', '/api/staff', { name: 'Raju Kumar', phone: staffPhone, pin: '246810' });
+  const assertNoErrors = watchForErrors(page);
+
+  // New client of type "Other: Office".
+  await page.goto('/stores/new');
+  await page.getByLabel('Client name').fill('Tech Park');
+  await page.getByRole('radio', { name: 'Other' }).click();
+  await page.getByRole('button', { name: 'Add client' }).click();
+  await expect(page.getByText('Type what kind of client this is')).toBeVisible();
+  await page.getByLabel('What kind of client?').fill('Office');
+  await page.getByLabel('Price per 20L can').fill('45');
+  await page.getByRole('button', { name: 'Add client' }).click();
+  await expect(page.getByRole('heading', { name: 'Tech Park' })).toBeVisible();
+  await expect(page.getByText(/^Office/)).toBeVisible();
+
+  // Order for later, given to Raju.
+  await page.getByRole('link', { name: 'Order', exact: true }).click();
+  await page.getByRole('radio', { name: 'For later' }).click();
+  await page.getByRole('textbox', { name: '20L can' }).fill('5');
+  await page.getByRole('radio', { name: 'Tomorrow' }).click();
+  await page.getByLabel('Delivered by').selectOption({ label: 'Raju Kumar' });
+  await expectNoHorizontalScroll(page);
+  await expectAccessible(page);
+  await page.getByRole('button', { name: 'Give to Raju Kumar · 5 cans' }).click();
+  await expect(page.getByText(/Order #\d+ · Tech Park/)).toBeVisible();
+  await expect(page.getByText('Given to Raju Kumar, who has been notified.')).toBeVisible();
+  assertNoErrors();
+
+  // Tomorrow's order isn't on Raju's list today; it shows on the owner's order as his.
+  await page.getByRole('button', { name: 'View order' }).click();
+  await expect(page.getByLabel('Delivered by')).toHaveValue(/.+/);
+  await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
+
+  // An order for today does show up for him.
+  const staffSide = await browser.newContext();
+  await staffSide.request.post('/api/auth/login', { data: { phone: staffPhone, pin: '246810' }, headers: { origin: 'http://localhost:4173' } });
+  const before = await api<{ assignedOrders: unknown[] }>(staffSide.request, 'GET', '/api/staff/today');
+  expect(before.assignedOrders).toHaveLength(0);
+  await page.goto('/orders/new');
+  await page.getByRole('button', { name: /Tech Park/ }).click();
+  await page.getByRole('radio', { name: 'For later' }).click();
+  await page.getByRole('textbox', { name: '20L can' }).fill('2');
+  await page.getByLabel('Delivered by').selectOption({ label: 'Raju Kumar' });
+  await page.getByRole('button', { name: 'Give to Raju Kumar · 2 cans' }).click();
+  await expect(page.getByText('Given to Raju Kumar, who has been notified.')).toBeVisible();
+  const after = await api<{ assignedOrders: { storeName: string; totalQuantity: number }[] }>(staffSide.request, 'GET', '/api/staff/today');
+  expect(after.assignedOrders).toEqual([expect.objectContaining({ storeName: 'Tech Park', totalQuantity: 2 })]);
   await staffSide.close();
 });

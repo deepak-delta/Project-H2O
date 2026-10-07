@@ -38,8 +38,8 @@ async function createAndDeliver(tx: Tx, auth: OperatorContext, input: QuickSale)
   const { supplierId, userId } = auth;
 
   const store = await tx.store.findFirst({ where: { id: input.storeId, supplierId } });
-  if (!store) throw notFound('Store');
-  if (store.status !== 'ACTIVE') throw validationError('This store is inactive. Reactivate it to record deliveries.');
+  if (!store) throw notFound('Client');
+  if (store.status !== 'ACTIVE') throw validationError('This client is inactive. Reactivate it to record deliveries.');
 
   const products = await tx.product.findMany({ where: { id: { in: input.items.map((i) => i.productId) }, supplierId } });
   const productById = new Map(products.map((p) => [p.id, p]));

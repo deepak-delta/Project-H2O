@@ -98,6 +98,7 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
     const input = parse(placeOrderSchema, req.body);
     const { order, replayed } = await placeOrder(db, auth, input);
     if (!replayed && auth.role === 'STORE') await notify.orderPlaced(db, notifier, auth.supplierId, order);
+    if (!replayed && order.assignedTo) await notify.orderAssigned(notifier, order.assignedTo.id, order);
     return reply.status(replayed ? 200 : 201).send(order);
   });
 

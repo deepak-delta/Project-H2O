@@ -37,7 +37,7 @@ export function CancelOrderSheet({ order, open, onClose, asStore }: { order: Ord
       <div className="flex flex-col gap-4">
         {delivered ? (
           <div className="rounded-xl bg-warn-bg px-3.5 py-3 text-sm text-warn">
-            <p>This undoes the delivery: the {format(order.total)} bill is removed from the store's balance and the cans go back into your stock.</p>
+            <p>This undoes the delivery: the {format(order.total)} bill is removed from the client's balance and the cans go back into your stock.</p>
             <p className="mt-1">Nothing is deleted; reversal entries are added to the history.</p>
           </div>
         ) : (
@@ -87,7 +87,7 @@ export function ReversePaymentSheet({ payment, onClose }: { payment: Pick<OrderP
       { paymentId: payment.id, reason: reason.trim() },
       {
         onSuccess: (res) => {
-          toast.success(`Payment reversed. Store balance is now ${format(res.storeBalance)}.`);
+          toast.success(`Payment reversed. Client balance is now ${format(res.storeBalance)}.`);
           close();
         },
         onError: (err) => setError(errorMessage(err)),
@@ -99,7 +99,7 @@ export function ReversePaymentSheet({ payment, onClose }: { payment: Pick<OrderP
     <Sheet open={payment !== null} onClose={close} title="Reverse this payment?">
       <div className="flex flex-col gap-4">
         <p className="text-[15px] text-ink-2">
-          {payment ? format(payment.amount) : ''} will be added back to what the store owes. The payment stays in the history,
+          {payment ? format(payment.amount) : ''} will be added back to what the client owes. The payment stays in the history,
           marked as reversed.
         </p>
         <Field label="Reason" placeholder="e.g. Entered twice by mistake" value={reason} onChange={(e) => setReason(e.target.value)} error={error ?? undefined} />

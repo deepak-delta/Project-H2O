@@ -283,3 +283,61 @@ describe("the owner's live-update check", () => {
     expect((await biz.client.get('/api/changes')).json().at).toBe(before);
   });
 });
+
+describe('owner creates an order for later and gives it to staff', () => {
+  it('is accepted already, given to staff on creation, and they are notified', async () => {
+    await staff.post('/api/push/subscribe', { endpoint: 'https://push.example.com/raju-2', keys: { p256dh: 'BKeyKeyKeyKeyKeyKeyKey', auth: 'authauthauth' } });
+    const res = await biz.client.post('/api/orders', {
+      clientId: randomUUID(),
+      storeId: biz.storeId,
+      items: [{ productId: biz.canId, quantity: 6 }],
+      assignedToId: staffId,
+      notes: 'Back gate',
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ status: 'CONFIRMED', source: 'SUPPLIER', total: '300.00', assignedTo: { id: staffId, name: 'Raju' } });
+    expect(sender.sent.filter((s) => s.endpoint === 'https://push.example.com/raju-2')).toHaveLength(1);
+
+    const day = (await staff.get('/api/staff/today')).json();
+    expect(day.assignedOrders.map((o: { id: string }) => o.id)).toEqual([res.json().id]);
+    expect((await deliver(staff, res.json().id, 6)).statusCode).toBe(201);
+  });
+
+  it('refuses another business’s staff, and a client cannot assign or set prices', async () => {
+    const other = await signupSupplier(ctx.app, { phone: '9555500030' });
+    const theirs = (await other.client.post('/api/staff', { name: 'T', phone: '9600000060', pin: '246810' })).json().id;
+    const bad = await biz.client.post('/api/orders', { clientId: randomUUID(), storeId: biz.storeId, items: [{ productId: biz.canId, quantity: 1 }], assignedToId: theirs });
+    expect(bad.statusCode).toBe(400);
+
+    const client = await storeUserClient(ctx.app, biz.client, biz.storeId, '9700000040');
+    const sneaky = await client.post('/api/orders', {
+      clientId: randomUUID(),
+      items: [{ productId: biz.canId, quantity: 2, unitPrice: '1' }],
+      assignedToId: staffId,
+    });
+    expect(sneaky.statusCode).toBe(201);
+    expect(sneaky.json()).toMatchObject({ status: 'PENDING', total: '100.00', assignedTo: null });
+  });
+
+  it('the owner can price a product the client has no price for yet', async () => {
+    const crate = (await biz.client.post('/api/products', { name: 'Bottle crate', isReturnable: false })).json().id;
+    const res = await biz.client.post('/api/orders', { clientId: randomUUID(), storeId: biz.storeId, items: [{ productId: crate, quantity: 2, unitPrice: '120' }] });
+    expect(res.json().total).toBe('240.00');
+    expect((await biz.client.get(`/api/stores/${biz.storeId}`)).json().prices).toContainEqual({ productId: crate, price: '120.00' });
+  });
+});
+
+describe('client type', () => {
+  it('defaults to Store, and "Other" needs its own label', async () => {
+    expect((await biz.client.get(`/api/stores/${biz.storeId}`)).json()).toMatchObject({ category: 'STORE', categoryOther: null });
+    const prices = [{ productId: biz.canId, price: '40' }];
+    const home = await biz.client.post('/api/stores', { name: 'Sharma house', category: 'HOME', prices });
+    expect(home.json()).toMatchObject({ category: 'HOME', categoryOther: null });
+    const missing = await biz.client.post('/api/stores', { name: 'Office', category: 'OTHER', prices });
+    expect(missing.statusCode).toBe(400);
+    const office = await biz.client.post('/api/stores', { name: 'Tech Park', category: 'OTHER', categoryOther: 'Office', prices });
+    expect(office.json()).toMatchObject({ category: 'OTHER', categoryOther: 'Office' });
+    const list = (await biz.client.get('/api/stores?search=Tech')).json().items;
+    expect(list[0]).toMatchObject({ category: 'OTHER', categoryOther: 'Office' });
+  });
+});

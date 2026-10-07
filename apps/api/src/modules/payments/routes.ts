@@ -47,7 +47,7 @@ export function registerPaymentRoutes(app: FastifyInstance, { db, notifier }: Se
     const input = parse(recordPaymentSchema, req.body);
 
     const store = await db.store.findFirst({ where: { id: input.storeId, supplierId: auth.supplierId } });
-    if (!store) throw notFound('Store');
+    if (!store) throw notFound('Client');
 
     const { result, replayed } = await idempotent(
       () =>

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { STORE_STATUSES, type StoreStatus } from '../enums';
+import { CLIENT_CATEGORIES, STORE_STATUSES, type ClientCategory, type StoreStatus } from '../enums';
 import { moneySchema, phoneSchema, quantitySchema } from './common';
 
 // Optional fields accept "", null or undefined and normalise to null, so a parsed value is
@@ -47,8 +47,11 @@ const optionalPhone = z
   .pipe(phoneSchema.optional())
   .transform((v) => v ?? null);
 
-export const storeInputSchema = z.object({
-  name: z.string().trim().min(1, 'Enter the store name').max(80),
+/** The fields of a client. Refined below: an "Other" client needs its own label. */
+export const storeFieldsSchema = z.object({
+  name: z.string().trim().min(1, 'Enter the client name').max(80),
+  category: z.enum(CLIENT_CATEGORIES).default('STORE'),
+  categoryOther: optionalText(40),
   ownerName: optionalText(80),
   phone: optionalPhone,
   address: optionalText(200),
@@ -58,6 +61,15 @@ export const storeInputSchema = z.object({
     .or(z.literal('').transform(() => undefined))
     .transform((v) => v ?? null),
 });
+
+/** "Other" needs the owner's own word for it; any other type ignores that box. */
+export function clientCategoryRule(v: { category?: ClientCategory; categoryOther?: string | null }, ctx: z.RefinementCtx): void {
+  if (v.category === 'OTHER' && !v.categoryOther) {
+    ctx.addIssue({ code: 'custom', message: 'Type what kind of client this is', path: ['categoryOther'] });
+  }
+}
+
+export const storeInputSchema = storeFieldsSchema.superRefine(clientCategoryRule);
 export type StoreInput = z.input<typeof storeInputSchema>;
 
 // ─── Store prices ────────────────────────────────────────────────────────────
@@ -82,7 +94,7 @@ export const storePricesSchema = z.object({ prices: pricesSchema.min(1) });
 export type StorePricesInput = z.input<typeof storePricesSchema>;
 
 /** Creating a store can also bring over balances from a paper notebook. */
-export const createStoreSchema = storeInputSchema.extend({
+export const createStoreFieldsSchema = storeFieldsSchema.extend({
   /** This store's price for each product that is on sale. */
   prices: pricesSchema,
   /** Money the store already owes (negative = advance paid). */
@@ -95,6 +107,7 @@ export const createStoreSchema = storeInputSchema.extend({
     .max(20)
     .default([]),
 });
+export const createStoreSchema = createStoreFieldsSchema.superRefine(clientCategoryRule);
 export type CreateStoreInput = z.input<typeof createStoreSchema>;
 
 export const storeStatusSchema = z.object({ status: z.enum(STORE_STATUSES) });
@@ -108,6 +121,9 @@ export interface StoreCans {
 export interface StoreListItem {
   id: string;
   name: string;
+  category: ClientCategory;
+  /** The owner's own label when category is OTHER. */
+  categoryOther: string | null;
   ownerName: string | null;
   phone: string | null;
   status: StoreStatus;

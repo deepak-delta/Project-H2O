@@ -75,3 +75,7 @@ export type SyncState = (typeof SYNC_STATES)[number];
 
 /** Below this many filled cans (all returnable products together) the supplier is warned. */
 export const LOW_STOCK_FILLED_CANS = 10;
+
+/** What kind of client: a shop, a household, a person, or the owner's own wording. */
+export const CLIENT_CATEGORIES = ['STORE', 'HOME', 'INDIVIDUAL', 'OTHER'] as const;
+export type ClientCategory = (typeof CLIENT_CATEGORIES)[number];

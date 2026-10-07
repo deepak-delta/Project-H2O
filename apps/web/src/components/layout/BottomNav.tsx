@@ -28,7 +28,7 @@ const SUPPLIER_LEFT: NavItem[] = [
 // Two tabs either side keeps "New order" in the exact centre; Inventory lives under More
 // (and the dashboard's Cans card links straight to it).
 const SUPPLIER_RIGHT: NavItem[] = [
-  { to: '/stores', label: 'Stores', icon: Store },
+  { to: '/stores', label: 'Clients', icon: Store },
   {
     to: '/more',
     label: 'More',
@@ -39,7 +39,7 @@ const SUPPLIER_RIGHT: NavItem[] = [
 // Delivery staff: same centred "+" (new delivery); everything else is about today.
 const STAFF_LEFT: NavItem[] = [
   { to: '/', label: 'Today', icon: House },
-  { to: '/stores', label: 'Stores', icon: Store },
+  { to: '/stores', label: 'Clients', icon: Store },
 ];
 const STAFF_RIGHT: NavItem[] = [
   { to: '/expenses', label: 'Expenses', icon: Receipt },

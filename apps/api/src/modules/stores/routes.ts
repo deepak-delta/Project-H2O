@@ -16,7 +16,13 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Services } from '../../app';
 import * as notify from '../notifications/events';
-import { requireOperator, requireOwnerOrStore, requireSupplier, type StoreContext, type SupplierContext } from '../../lib/auth-context';
+import {
+  requireOperator,
+  requireOwnerOrStore,
+  requireSupplier,
+  type StoreContext,
+  type SupplierContext,
+} from '../../lib/auth-context';
 import { audit } from '../../lib/audit';
 import type { Db } from '../../lib/db';
 import { conflict, notFound, validationError } from '../../lib/errors';
@@ -42,6 +48,8 @@ const listQuerySchema = z.object({
 interface StoreRow {
   id: string;
   name: string;
+  category: 'STORE' | 'HOME' | 'INDIVIDUAL' | 'OTHER';
+  categoryOther: string | null;
   ownerName: string | null;
   phone: string | null;
   status: 'ACTIVE' | 'INACTIVE';
@@ -80,7 +88,7 @@ async function listStores(db: Db, supplierId: string, q: z.output<typeof listQue
       FROM "InventoryMovement" WHERE "supplierId" = ${supplierId} AND "storeId" IS NOT NULL
       GROUP BY "storeId"
     )
-    SELECT s.id, s.name, s."ownerName", s.phone, s.status,
+    SELECT s.id, s.name, s.category::text AS category, s."categoryOther", s."ownerName", s.phone, s.status,
            COALESCE(bal.balance, 0) AS balance,
            COALESCE(cans.cans, 0) AS cans,
            cans."lastDeliveryAt"
@@ -113,19 +121,19 @@ async function listStores(db: Db, supplierId: string, q: z.output<typeof listQue
   }
 
   return {
-    items: page.map(
-      (r): StoreListItem => ({
-        id: r.id,
-        name: r.name,
-        ownerName: r.ownerName,
-        phone: r.phone,
-        status: r.status,
-        balance: fromMinor(sqlSumToMinor(r.balance)),
-        cansOutstanding: Number(r.cans ?? 0),
-        lastDeliveryAt: r.lastDeliveryAt?.toISOString() ?? null,
-        prices: pricesByStore.get(r.id) ?? [],
-      }),
-    ),
+    items: page.map((r): StoreListItem => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      categoryOther: r.categoryOther,
+      ownerName: r.ownerName,
+      phone: r.phone,
+      status: r.status,
+      balance: fromMinor(sqlSumToMinor(r.balance)),
+      cansOutstanding: Number(r.cans ?? 0),
+      lastDeliveryAt: r.lastDeliveryAt?.toISOString() ?? null,
+      prices: pricesByStore.get(r.id) ?? [],
+    })),
     nextOffset: hasMore ? q.offset + q.limit : null,
   };
 }
@@ -135,12 +143,15 @@ async function loadStoreDetail(db: Db, supplierId: string, storeId: string): Pro
     where: { id: storeId, supplierId },
     include: { loginUser: { select: { id: true, active: true, phone: true } } },
   });
-  if (!store) throw notFound('Store');
+  if (!store) throw notFound('Client');
 
   const [balance, canMap, products, lastDelivery, prices] = await Promise.all([
     storeBalanceMinor(db, supplierId, storeId),
     storeCanBalances(db, supplierId, storeId),
-    db.product.findMany({ where: { supplierId }, select: { id: true, name: true, isReturnable: true, active: true } }),
+    db.product.findMany({
+      where: { supplierId },
+      select: { id: true, name: true, isReturnable: true, active: true },
+    }),
     db.delivery.findFirst({
       where: { supplierId, storeId },
       orderBy: { deliveredAt: 'desc' },
@@ -156,6 +167,8 @@ async function loadStoreDetail(db: Db, supplierId: string, storeId: string): Pro
   return {
     id: store.id,
     name: store.name,
+    category: store.category,
+    categoryOther: store.categoryOther,
     ownerName: store.ownerName,
     phone: store.phone,
     status: store.status,
@@ -168,7 +181,9 @@ async function loadStoreDetail(db: Db, supplierId: string, storeId: string): Pro
     prices,
     lastDeliveryAt: lastDelivery?.deliveredAt.toISOString() ?? null,
     lastOrderItems:
-      lastDelivery?.items.filter((i) => i.deliveredQty > 0).map((i) => ({ productId: i.productId, quantity: i.deliveredQty })) ?? [],
+      lastDelivery?.items
+        .filter((i) => i.deliveredQty > 0)
+        .map((i) => ({ productId: i.productId, quantity: i.deliveredQty })) ?? [],
     hasLogin: Boolean(store.loginUser?.active),
     loginPhone: store.loginUser?.active ? store.loginUser.phone : null,
     createdAt: store.createdAt.toISOString(),
@@ -181,13 +196,20 @@ function forStaff(detail: StoreDetail): StoreDetail {
 }
 
 /** Suppliers may open any of their stores; a store user only their own. Others get a 404. */
-async function assertStoreAccess(db: Db, auth: SupplierContext | StoreContext, storeId: string): Promise<void> {
+async function assertStoreAccess(
+  db: Db,
+  auth: SupplierContext | StoreContext,
+  storeId: string,
+): Promise<void> {
   if (auth.role === 'STORE') {
-    if (auth.storeId !== storeId) throw notFound('Store');
+    if (auth.storeId !== storeId) throw notFound('Client');
     return;
   }
-  const store = await db.store.findFirst({ where: { id: storeId, supplierId: auth.supplierId }, select: { id: true } });
-  if (!store) throw notFound('Store');
+  const store = await db.store.findFirst({
+    where: { id: storeId, supplierId: auth.supplierId },
+    select: { id: true },
+  });
+  if (!store) throw notFound('Client');
 }
 
 export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }: Services): void {
@@ -195,7 +217,11 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
     const auth = requireOperator(req);
     const q = parse(listQuerySchema, req.query);
     // Staff work with active stores only.
-    return listStores(db, auth.supplierId, auth.role === 'STAFF' && q.filter === 'inactive' ? { ...q, filter: 'all' } : q);
+    return listStores(
+      db,
+      auth.supplierId,
+      auth.role === 'STAFF' && q.filter === 'inactive' ? { ...q, filter: 'all' } : q,
+    );
   });
 
   app.post('/api/stores', async (req, reply) => {
@@ -205,15 +231,24 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
 
     if (openingCans.length > 0) {
       const ids = openingCans.map((c) => c.productId);
-      const valid = await db.product.count({ where: { id: { in: ids }, supplierId: auth.supplierId, isReturnable: true } });
-      if (valid !== new Set(ids).size) throw validationError('Opening cans must be for your returnable products.');
+      const valid = await db.product.count({
+        where: { id: { in: ids }, supplierId: auth.supplierId, isReturnable: true },
+      });
+      if (valid !== new Set(ids).size)
+        throw validationError('Opening cans must be for your returnable products.');
     }
 
     // A store is created with its price for every product on sale.
-    const onSale = await db.product.findMany({ where: { supplierId: auth.supplierId, active: true }, select: { id: true, name: true } });
+    const onSale = await db.product.findMany({
+      where: { supplierId: auth.supplierId, active: true },
+      select: { id: true, name: true },
+    });
     const priced = new Set(input.prices.map((p) => p.productId));
     const missing = onSale.find((p) => !priced.has(p.id));
-    if (missing) throw validationError(`Enter this store's price for ${missing.name}.`, { prices: 'Enter a price for every product' });
+    if (missing)
+      throw validationError(`Enter this client's price for ${missing.name}.`, {
+        prices: 'Enter a price for every product',
+      });
 
     const storeId = await db.$transaction(async (tx) => {
       const store = await tx.store.create({
@@ -222,6 +257,8 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
           createdById: auth.userId,
           name: input.name,
           ownerName: input.ownerName,
+          category: input.category,
+          categoryOther: input.category === 'OTHER' ? input.categoryOther : null,
           phone: input.phone,
           address: input.address,
           notes: input.notes,
@@ -272,8 +309,11 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
     const auth = requireSupplier(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const input = parse(storePricesSchema, req.body);
-    const store = await db.store.findFirst({ where: { id, supplierId: auth.supplierId }, select: { id: true } });
-    if (!store) throw notFound('Store');
+    const store = await db.store.findFirst({
+      where: { id, supplierId: auth.supplierId },
+      select: { id: true },
+    });
+    if (!store) throw notFound('Client');
     await db.$transaction((tx) => setStorePrices(tx, auth, id, input.prices));
     return loadStoreDetail(db, auth.supplierId, id);
   });
@@ -283,7 +323,7 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const detail = await loadStoreDetail(db, auth.supplierId, id);
     if (auth.role === 'STAFF') {
-      if (detail.status !== 'ACTIVE') throw notFound('Store');
+      if (detail.status !== 'ACTIVE') throw notFound('Client');
       return forStaff(detail);
     }
     return detail;
@@ -298,13 +338,15 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
       data: {
         name: input.name,
         ownerName: input.ownerName,
+        category: input.category,
+        categoryOther: input.category === 'OTHER' ? input.categoryOther : null,
         phone: input.phone,
         address: input.address,
         notes: input.notes,
         creditLimit: input.creditLimit,
       },
     });
-    if (result.count === 0) throw notFound('Store');
+    if (result.count === 0) throw notFound('Client');
     return loadStoreDetail(db, auth.supplierId, id);
   });
 
@@ -314,7 +356,7 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const { status } = parse(storeStatusSchema, req.body);
     const store = await db.store.findFirst({ where: { id, supplierId: auth.supplierId } });
-    if (!store) throw notFound('Store');
+    if (!store) throw notFound('Client');
 
     await db.$transaction(async (tx) => {
       await tx.store.update({ where: { id }, data: { status } });
@@ -323,7 +365,10 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
       const user = await tx.user.findFirst({ where: { storeId: id } });
       if (user && status === 'INACTIVE') {
         await tx.user.update({ where: { id: user.id }, data: { active: false } });
-        await tx.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+        await tx.session.updateMany({
+          where: { userId: user.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
         // Their phones stop receiving this business's notifications too.
         await tx.pushSubscription.deleteMany({ where: { userId: user.id } });
       }
@@ -345,7 +390,10 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
     const auth = requireOwnerOrStore(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const q = parse(
-      z.object({ cursor: z.string().optional(), limit: z.coerce.number().int().min(1).max(100).default(30) }),
+      z.object({
+        cursor: z.string().optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(30),
+      }),
       req.query,
     );
     await assertStoreAccess(db, auth, id);
@@ -366,7 +414,10 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
         where: {
           supplierId: auth.supplierId,
           storeId: id,
-          OR: [{ occurredAt: { lt: first.occurredAt } }, { occurredAt: first.occurredAt, id: { lte: first.id } }],
+          OR: [
+            { occurredAt: { lt: first.occurredAt } },
+            { occurredAt: first.occurredAt, id: { lte: first.id } },
+          ],
         },
         _sum: { amount: true },
       });
@@ -403,7 +454,10 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
     const { id } = parse(z.object({ id: z.string() }), req.params);
     await assertStoreAccess(db, auth, id);
     const q = parse(
-      z.object({ cursor: z.string().optional(), limit: z.coerce.number().int().min(1).max(100).default(30) }),
+      z.object({
+        cursor: z.string().optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(30),
+      }),
       req.query,
     );
     const rows = await db.inventoryMovement.findMany({
@@ -439,11 +493,15 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const input = parse(canReturnSchema, req.body);
     const store = await db.store.findFirst({ where: { id, supplierId: auth.supplierId } });
-    if (!store) throw notFound('Store');
+    if (!store) throw notFound('Client');
 
     const items = input.items.filter((i) => i.quantity > 0);
     const products = await db.product.findMany({
-      where: { id: { in: items.map((i) => i.productId) }, supplierId: auth.supplierId, isReturnable: true },
+      where: {
+        id: { in: items.map((i) => i.productId) },
+        supplierId: auth.supplierId,
+        isReturnable: true,
+      },
       select: { id: true },
     });
     if (products.length !== new Set(items.map((i) => i.productId)).size) {
@@ -451,20 +509,41 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
     }
 
     const { replayed } = await idempotent(
-      () => db.inventoryMovement.findFirst({ where: { supplierId: auth.supplierId, clientId: input.clientId } }),
+      () =>
+        db.inventoryMovement.findFirst({
+          where: { supplierId: auth.supplierId, clientId: input.clientId },
+        }),
       () =>
         db.$transaction(async (tx) => {
           const now = resolveOccurredAt(input.occurredAt);
           const [first, ...rest] = items;
           if (!first) throw validationError('Enter how many cans were returned');
-          const base = { supplierId: auth.supplierId, storeId: id, type: 'RETURN' as const, createdById: auth.userId, occurredAt: now, reason: input.notes };
+          const base = {
+            supplierId: auth.supplierId,
+            storeId: id,
+            type: 'RETURN' as const,
+            createdById: auth.userId,
+            occurredAt: now,
+            reason: input.notes,
+          };
           // The client ID sits on the first row; it is enough to make the whole request idempotent.
           const created = await tx.inventoryMovement.create({
-            data: { ...base, productId: first.productId, emptyDelta: first.quantity, withCustomersDelta: -first.quantity, clientId: input.clientId },
+            data: {
+              ...base,
+              productId: first.productId,
+              emptyDelta: first.quantity,
+              withCustomersDelta: -first.quantity,
+              clientId: input.clientId,
+            },
           });
           if (rest.length > 0) {
             await tx.inventoryMovement.createMany({
-              data: rest.map((i) => ({ ...base, productId: i.productId, emptyDelta: i.quantity, withCustomersDelta: -i.quantity })),
+              data: rest.map((i) => ({
+                ...base,
+                productId: i.productId,
+                emptyDelta: i.quantity,
+                withCustomersDelta: -i.quantity,
+              })),
             });
           }
           return created;
@@ -472,7 +551,9 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
     );
 
     const detail = await loadStoreDetail(db, auth.supplierId, id);
-    return reply.status(replayed ? 200 : 201).send(auth.role === 'STAFF' ? forStaff(detail) : detail);
+    return reply
+      .status(replayed ? 200 : 201)
+      .send(auth.role === 'STAFF' ? forStaff(detail) : detail);
   });
 
   /** Turn on (or reset) the store's own app login: phone + PIN chosen by the supplier. */
@@ -480,9 +561,13 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
     const auth = requireSupplier(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
     const input = parse(storeLoginSchema, req.body);
-    const store = await db.store.findFirst({ where: { id, supplierId: auth.supplierId }, include: { loginUser: true } });
-    if (!store) throw notFound('Store');
-    if (store.status !== 'ACTIVE') throw validationError('Reactivate this store before giving it app access.');
+    const store = await db.store.findFirst({
+      where: { id, supplierId: auth.supplierId },
+      include: { loginUser: true },
+    });
+    if (!store) throw notFound('Client');
+    if (store.status !== 'ACTIVE')
+      throw validationError('Reactivate this client before giving it app access.');
 
     const taken = await db.user.findUnique({ where: { phone: input.phone }, select: { id: true } });
     if (taken && taken.id !== store.loginUser?.id) {
@@ -494,10 +579,19 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
       if (store.loginUser) {
         await tx.user.update({
           where: { id: store.loginUser.id },
-          data: { phone: input.phone, pinHash, active: true, failedPinAttempts: 0, lockedUntil: null },
+          data: {
+            phone: input.phone,
+            pinHash,
+            active: true,
+            failedPinAttempts: 0,
+            lockedUntil: null,
+          },
         });
         // A new PIN signs the store out everywhere.
-        await tx.session.updateMany({ where: { userId: store.loginUser.id, revokedAt: null }, data: { revokedAt: new Date() } });
+        await tx.session.updateMany({
+          where: { userId: store.loginUser.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
         // Their phones stop receiving this business's notifications too.
         await tx.pushSubscription.deleteMany({ where: { userId: store.loginUser.id } });
       } else {
@@ -527,13 +621,19 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
   app.delete('/api/stores/:id/login', async (req) => {
     const auth = requireSupplier(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
-    const store = await db.store.findFirst({ where: { id, supplierId: auth.supplierId }, include: { loginUser: true } });
-    if (!store) throw notFound('Store');
+    const store = await db.store.findFirst({
+      where: { id, supplierId: auth.supplierId },
+      include: { loginUser: true },
+    });
+    if (!store) throw notFound('Client');
     if (store.loginUser?.active) {
       const userId = store.loginUser.id;
       await db.$transaction(async (tx) => {
         await tx.user.update({ where: { id: userId }, data: { active: false } });
-        await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+        await tx.session.updateMany({
+          where: { userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
         // Their phones stop receiving this business's notifications too.
         await tx.pushSubscription.deleteMany({ where: { userId: userId } });
         await audit(tx, {
@@ -552,11 +652,20 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
   app.post('/api/stores/:id/remind', async (req) => {
     const auth = requireSupplier(req);
     const { id } = parse(z.object({ id: z.string() }), req.params);
-    const store = await db.store.findFirst({ where: { id, supplierId: auth.supplierId }, select: { id: true } });
-    if (!store) throw notFound('Store');
+    const store = await db.store.findFirst({
+      where: { id, supplierId: auth.supplierId },
+      select: { id: true },
+    });
+    if (!store) throw notFound('Client');
     const balance = await storeBalanceMinor(db, auth.supplierId, id);
-    if (balance <= 0) throw validationError("This store doesn't owe anything right now.");
-    const sent = await notify.paymentReminder(db, notifier, auth.supplierId, id, fromMinor(balance));
+    if (balance <= 0) throw validationError("This client doesn't owe anything right now.");
+    const sent = await notify.paymentReminder(
+      db,
+      notifier,
+      auth.supplierId,
+      id,
+      fromMinor(balance),
+    );
     return { sent };
   });
 }

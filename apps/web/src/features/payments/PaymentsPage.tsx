@@ -93,7 +93,7 @@ export default function PaymentsPage() {
               to={`/stores/${selected.storeId}`}
               className="flex h-12 items-center justify-center rounded-xl border border-line-strong font-semibold text-ink"
             >
-              Open store
+              Open client
             </Link>
             {!selected.reversed ? (
               <Button

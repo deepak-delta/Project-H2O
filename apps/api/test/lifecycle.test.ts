@@ -43,7 +43,8 @@ async function ledgerNetForOrder(orderId: string): Promise<string> {
 describe('placing an order', () => {
   it('records nothing financial until delivery', async () => {
     const order = await placeOrder(10);
-    expect(order).toMatchObject({ status: 'PENDING', source: 'SUPPLIER', total: '500.00' });
+    // The owner's own order needs no accepting.
+    expect(order).toMatchObject({ status: 'CONFIRMED', source: 'SUPPLIER', total: '500.00' });
     expect(await ctx.db.ledgerEntry.count({ where: { orderId: order.id } })).toBe(0);
     expect(await ctx.db.inventoryMovement.count({ where: { orderId: order.id } })).toBe(0);
     expect((await storeDetail(biz.client, biz.storeId)).balance).toBe('0.00');

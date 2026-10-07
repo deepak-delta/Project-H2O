@@ -24,7 +24,7 @@ export default function OutstandingReportPage() {
     report.data &&
     downloadCsv(
       'outstanding-credit.csv',
-      ['Store', 'Phone', 'Balance', 'Cans held', 'Last payment', 'Last delivery'],
+      ['Client', 'Phone', 'Balance', 'Cans held', 'Last payment', 'Last delivery'],
       report.data.rows.map((r) => [
         r.storeName,
         r.phone ? formatPhone(r.phone) : '',
@@ -44,14 +44,14 @@ export default function OutstandingReportPage() {
         ) : report.isError ? (
           <ErrorRetry message={errorMessage(report.error)} onRetry={() => void report.refetch()} />
         ) : report.data.rows.length === 0 ? (
-          <EmptyState icon={<HandCoins className="size-6" />} title="Nobody owes you money" description="All stores are settled." />
+          <EmptyState icon={<HandCoins className="size-6" />} title="Nobody owes you money" description="All clients are settled." />
         ) : (
           <>
             <Card className="px-4 py-3.5">
               <p className="text-[13px] text-muted">Total outstanding</p>
               <p className="text-2xl font-semibold text-bad tabular">{format(report.data.total)}</p>
               <p className="text-sm text-muted">
-                {report.data.rows.length} store{report.data.rows.length === 1 ? '' : 's'}
+                {report.data.rows.length} client{report.data.rows.length === 1 ? '' : 's'}
               </p>
             </Card>
             <ListCard>

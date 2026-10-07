@@ -50,7 +50,7 @@ test('turn notifications on and off for this phone', async ({ page, context }) =
 
   await page.goto('/settings/notifications');
   await expect(page.getByText('Off for this phone', { exact: true })).toBeVisible();
-  await expect(page.getByText('New orders from stores')).toBeVisible();
+  await expect(page.getByText('New orders from clients')).toBeVisible();
   await page.getByRole('button', { name: 'Turn on notifications' }).click();
   await expect(page.getByText('On for this phone', { exact: true })).toBeVisible();
   await expect.poll(() => subscriptionCount(`+91${phone}`)).toBe(1);

@@ -29,28 +29,39 @@ const isOpen = (status: string) => (OPEN as readonly string[]).includes(status);
 /** A store asks for water (or the supplier notes a phone order). No money or stock moves yet. */
 export async function placeOrder(db: Db, auth: SupplierContext | StoreContext, input: z.output<typeof placeOrderSchema>): Promise<{ order: OrderDto; replayed: boolean }> {
   const storeId = auth.role === 'STORE' ? auth.storeId : input.storeId;
-  if (!storeId) throw validationError('Choose a store.', { storeId: 'Choose a store' });
+  if (!storeId) throw validationError('Choose a client.', { storeId: 'Choose a client' });
 
   const { result: orderId, replayed } = await idempotent(
     async () => (await db.order.findFirst({ where: { supplierId: auth.supplierId, clientId: input.clientId }, select: { id: true } }))?.id ?? null,
     () =>
       db.$transaction(async (tx) => {
         const store = await tx.store.findFirst({ where: { id: storeId, supplierId: auth.supplierId } });
-        if (!store) throw notFound('Store');
-        if (store.status !== 'ACTIVE') throw validationError('This store is inactive.');
+        if (!store) throw notFound('Client');
+        if (store.status !== 'ACTIVE') throw validationError('This client is inactive.');
 
         const items = input.items.filter((i) => i.quantity > 0);
         const products = await tx.product.findMany({
           where: { id: { in: items.map((i) => i.productId) }, supplierId: auth.supplierId, active: true },
         });
         const byId = new Map(products.map((p) => [p.id, p]));
+        const isOwner = auth.role === 'SUPPLIER';
         const requested = items.map((i) => {
           const product = byId.get(i.productId);
           if (!product) throw validationError('One of the products is no longer available. Please refresh.');
-          return { product, quantity: i.quantity };
+          return { product, quantity: i.quantity, ...(isOwner && i.unitPrice ? { unitPrice: i.unitPrice } : {}) };
         });
-        // Stores order at their own agreed prices; they cannot set a price themselves.
-        const priced = await resolveLinePrices(tx, auth, storeId, requested, { canSetPrice: false });
+        // Clients order at their own agreed prices; only the owner can set a missing price.
+        const priced = await resolveLinePrices(tx, auth, storeId, requested, { canSetPrice: isOwner });
+
+        let assignedToId: string | null = null;
+        if (isOwner && input.assignedToId) {
+          const staff = await tx.user.findFirst({
+            where: { id: input.assignedToId, supplierId: auth.supplierId, role: 'STAFF', active: true },
+            select: { id: true },
+          });
+          if (!staff) throw validationError('Choose an active member of staff.', { assignedToId: 'Not found' });
+          assignedToId = staff.id;
+        }
         const lines = priced.map((l) => ({ productId: l.product.id, quantity: l.quantity, unitPrice: l.unitPrice, lineTotal: l.unitPrice * l.quantity }));
         const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
 
@@ -70,8 +81,10 @@ export async function placeOrder(db: Db, auth: SupplierContext | StoreContext, i
             supplierId: auth.supplierId,
             storeId,
             orderNumber: counter.nextOrderNumber - 1,
-            status: 'PENDING',
+            // A client's order waits for the owner to accept it; the owner's own is accepted already.
+            status: isOwner ? 'CONFIRMED' : 'PENDING',
             source: auth.role === 'STORE' ? 'STORE' : 'SUPPLIER',
+            assignedToId,
             orderDate: resolveOccurredAt(input.occurredAt),
             deliveryDate,
             // Estimated from today's prices; the bill is fixed only when cans are delivered.
@@ -118,7 +131,7 @@ export async function deliverOrder(
           if (!isOpen(order.status) && order.status !== 'PARTIALLY_DELIVERED') {
             throw conflict(order.status === 'CANCELLED' ? 'This order was cancelled.' : 'This order is already delivered.');
           }
-          if (order.store.status !== 'ACTIVE') throw validationError('This store is inactive. Reactivate it to record deliveries.');
+          if (order.store.status !== 'ACTIVE') throw validationError('This client is inactive. Reactivate it to record deliveries.');
 
           const itemByProduct = new Map(order.items.map((i) => [i.productId, i]));
           const lines = input.items.map((i) => {

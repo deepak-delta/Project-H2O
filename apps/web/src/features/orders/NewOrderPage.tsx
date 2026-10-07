@@ -1,6 +1,6 @@
 import type { ProductDto, QuickSaleResult, StoreDetail } from '@wd/shared';
 import { CircleAlert } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
 import { Button } from '../../components/ui/Button';
@@ -15,6 +15,9 @@ import { useOnline } from '../../hooks/useOnline';
 import { cachedStores, storeDetailFromListItem, useStore } from '../stores/api';
 import { useQuickSale } from './api';
 import { DeliveryDone, DeliveryForm, DeliveryQueued, type DeliveryTotals } from './DeliveryForm';
+import { ScheduleOrderForm } from './ScheduleOrderForm';
+import { Segmented } from '../../components/ui/Segmented';
+import { useSession } from '../auth/session';
 
 /** Supplier quick sale: store → quantities → empties → payment → confirm. */
 export default function NewOrderPage() {
@@ -24,7 +27,7 @@ export default function NewOrderPage() {
   if (!storeId) {
     return (
       <>
-        <PageHeader title="New order" subtitle="Choose a store" back={true} />
+        <PageHeader title="New order" subtitle="Choose a client" back={true} />
         <PageBody>
           <StorePicker onPick={(id) => setParams({ storeId: id })} />
         </PageBody>
@@ -81,10 +84,48 @@ function QuickSale({ storeId, onChangeStore }: { storeId: string; onChangeStore:
       </>
     );
   }
-  return <QuickSaleForm store={store.data} products={products.data} onChangeStore={onChangeStore} />;
+  return <OrderModes store={store.data} products={products.data} onChangeStore={onChangeStore} />;
 }
 
-function QuickSaleForm({ store, products, onChangeStore }: { store: StoreDetail; products: ProductDto[]; onChangeStore: () => void }) {
+type Mode = 'now' | 'later';
+
+/** Owner: deliver now (quick sale) or create an order for later, optionally for staff. Staff: deliver now. */
+function OrderModes({ store, products, onChangeStore }: { store: StoreDetail; products: ProductDto[]; onChangeStore: () => void }) {
+  const isOwner = useSession().user.role === 'SUPPLIER';
+  const [mode, setMode] = useState<Mode>('now');
+  const top = isOwner ? (
+    <Segmented<Mode>
+      label="When is it delivered"
+      value={mode}
+      onChange={setMode}
+      options={[
+        { value: 'now', label: 'Deliver now' },
+        { value: 'later', label: 'For later' },
+      ]}
+    />
+  ) : null;
+  const change = (
+    <Button variant="ghost" onClick={onChangeStore}>
+      Change
+    </Button>
+  );
+  if (isOwner && mode === 'later') {
+    return <ScheduleOrderForm store={store} products={products} headerAction={change} top={top} onNewOrder={onChangeStore} />;
+  }
+  return <QuickSaleForm store={store} products={products} onChangeStore={onChangeStore} top={top} />;
+}
+
+function QuickSaleForm({
+  store,
+  products,
+  onChangeStore,
+  top,
+}: {
+  store: StoreDetail;
+  products: ProductDto[];
+  onChangeStore: () => void;
+  top?: ReactNode;
+}) {
   const navigate = useNavigate();
   const sale = useQuickSale();
   // One idempotency key per order: retrying after a network error can't double-record.
@@ -108,7 +149,7 @@ function QuickSaleForm({ store, products, onChangeStore }: { store: StoreDetail;
         result={done}
         store={store}
         primary={{ label: 'New order', onClick: onChangeStore }}
-        secondary={{ label: 'View store', onClick: () => void navigate(`/stores/${store.id}`, { replace: true }) }}
+        secondary={{ label: 'View client', onClick: () => void navigate(`/stores/${store.id}`, { replace: true }) }}
       />
     );
   }
@@ -117,6 +158,7 @@ function QuickSaleForm({ store, products, onChangeStore }: { store: StoreDetail;
     <DeliveryForm
       store={store}
       back={true}
+      top={top}
       headerAction={
         <Button variant="ghost" onClick={onChangeStore}>
           Change

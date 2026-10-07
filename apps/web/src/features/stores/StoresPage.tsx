@@ -14,6 +14,7 @@ import { errorMessage } from '../../services/api';
 import { formatPhone } from '@wd/shared';
 import { useSession } from '../auth/session';
 import { useStores, type StoreFilter } from './api';
+import { clientTypeLabel } from './clientType';
 import { StoreSearchBox } from './StorePicker';
 
 const FILTERS: { value: StoreFilter; label: string }[] = [
@@ -42,7 +43,7 @@ export default function StoresPage() {
   return (
     <>
       <PageHeader
-        title="Stores"
+        title="Clients"
         action={
           !isOwner ? undefined : (
             <Link
@@ -59,7 +60,7 @@ export default function StoresPage() {
         <div className="flex flex-col gap-3">
           <StoreSearchBox value={search} onChange={setSearch} />
           <FilterChips
-            label="Filter stores"
+            label="Filter clients"
             value={filter}
             onChange={setFilter}
             options={isOwner ? FILTERS : FILTERS.filter((f) => f.value !== 'inactive')}
@@ -75,20 +76,20 @@ export default function StoresPage() {
             icon={<StoreIcon className="size-6" />}
             title={
               debounced
-                ? 'No matching stores'
+                ? 'No matching clients'
                 : filter === 'owes'
                   ? 'Nobody owes you money'
                   : filter === 'cans'
-                    ? 'No cans are out with stores'
+                    ? 'No cans are out with clients'
                     : filter === 'inactive'
-                      ? 'No inactive stores'
-                      : 'No stores yet'
+                      ? 'No inactive clients'
+                      : 'No clients yet'
             }
             description={
               !debounced && filter === 'all'
                 ? isOwner
                   ? 'Add the shops you deliver water to.'
-                  : 'The owner adds the stores you deliver to.'
+                  : 'The owner adds the clients you deliver to.'
                 : undefined
             }
             action={
@@ -97,7 +98,7 @@ export default function StoresPage() {
                   to="/stores/new"
                   className="inline-flex h-11 items-center rounded-xl bg-brand-700 px-4 font-semibold text-white"
                 >
-                  Add store
+                  Add client
                 </Link>
               ) : undefined
             }
@@ -112,6 +113,7 @@ export default function StoresPage() {
                   title={s.name}
                   subtitle={
                     [
+                      clientTypeLabel(s),
                       s.ownerName,
                       s.phone ? formatPhone(s.phone) : null,
                       s.cansOutstanding ? `${s.cansOutstanding} cans` : null,

@@ -12,12 +12,11 @@ export interface Business {
 
 export async function createProduct(
   client: Client,
-  overrides: Partial<{ name: string; sellingPrice: string; isReturnable: boolean }> = {},
+  overrides: Partial<{ name: string; isReturnable: boolean }> = {},
 ): Promise<string> {
   const res = await client.post('/api/products', {
     name: '20L can',
     capacityLiters: '20',
-    sellingPrice: '50',
     depositAmount: '0',
     isReturnable: true,
     ...overrides,
@@ -26,10 +25,19 @@ export async function createProduct(
   return res.json<{ id: string }>().id;
 }
 
+/** A store priced at ₹50 for every product on sale, unless `prices` is given. */
 export async function createStore(client: Client, body: Record<string, unknown> = {}): Promise<string> {
-  const res = await client.post('/api/stores', { name: 'Sri Ganesh Stores', ownerName: 'Ganesh', phone: '9811122233', ...body });
+  const products = (await client.get('/api/products')).json<{ id: string }[]>();
+  const prices = products.map((p) => ({ productId: p.id, price: '50' }));
+  const res = await client.post('/api/stores', { name: 'Sri Ganesh Stores', ownerName: 'Ganesh', phone: '9811122233', prices, ...body });
   if (res.statusCode !== 201) throw new Error(`store: ${res.body}`);
   return res.json<{ id: string }>().id;
+}
+
+/** Sets what one store pays for one product. */
+export async function setPrice(client: Client, storeId: string, productId: string, price: string): Promise<void> {
+  const res = await client.request('PUT', `/api/stores/${storeId}/prices`, { prices: [{ productId, price }] });
+  if (res.statusCode !== 200) throw new Error(`price: ${res.body}`);
 }
 
 export async function addStock(client: Client, productId: string, filled: number, empty = 0): Promise<void> {

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createStoreSchema, formatPhone, type StoreDetail } from '@wd/shared';
+import { createStoreSchema, formatPhone, moneySchema, type ProductDto, type StoreDetail } from '@wd/shared';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -16,10 +16,12 @@ import { PageSpinner } from '../../components/ui/Spinner';
 import { ApiError, errorMessage } from '../../services/api';
 import { toast } from '../../stores/toast';
 import { useProducts } from '../catalog/api';
-import { useCreateStore, useStore, useUpdateStore } from './api';
+import { useCreateStore, usePriceSuggestions, useSetStorePrices, useStore, useUpdateStore } from './api';
 
-type FormInput = z.input<typeof createStoreSchema>;
-type FormOutput = z.output<typeof createStoreSchema>;
+// Prices are collected separately (one box per product), so the form itself leaves them out.
+const storeFormSchema = createStoreSchema.omit({ prices: true });
+type FormInput = z.input<typeof storeFormSchema>;
+type FormOutput = z.output<typeof storeFormSchema>;
 
 export default function StoreFormPage() {
   const { id } = useParams();
@@ -39,13 +41,23 @@ export default function StoreFormPage() {
   return <StoreForm existing={store.data} />;
 }
 
+const priceSchema = moneySchema({ allowZero: false });
+
 function StoreForm({ existing }: { existing?: StoreDetail }) {
   const navigate = useNavigate();
   const create = useCreateStore();
   const update = useUpdateStore(existing?.id ?? '');
+  const savePrices = useSetStorePrices(existing?.id ?? '');
   const products = useProducts();
+  const suggestions = usePriceSuggestions();
   const [showOpening, setShowOpening] = useState(false);
   const returnable = products.data?.filter((p) => p.isReturnable) ?? [];
+  // Prices are kept outside the form library: one box per product, filled once the lists load.
+  const [prices, setPrices] = useState<Record<string, string>>({});
+  const [priceErrors, setPriceErrors] = useState<Record<string, string>>({});
+  const startingPrice = (productId: string) =>
+    (existing?.prices ?? suggestions.data ?? []).find((p) => p.productId === productId)?.price.replace(/\.00$/, '') ?? '';
+  const priceOf = (productId: string) => prices[productId] ?? startingPrice(productId);
 
   const {
     register,
@@ -54,7 +66,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
     setError,
     formState: { errors },
   } = useForm<FormInput, unknown, FormOutput>({
-    resolver: zodResolver(createStoreSchema),
+    resolver: zodResolver(storeFormSchema),
     defaultValues: {
       name: existing?.name ?? '',
       ownerName: existing?.ownerName ?? '',
@@ -67,9 +79,29 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
     },
   });
 
-  const pending = create.isPending || update.isPending;
+  const pending = create.isPending || update.isPending || savePrices.isPending;
+
+  /** Every product needs a price for a new store; when editing, an empty box leaves it unset. */
+  const collectPrices = (): { productId: string; price: string }[] | null => {
+    const errs: Record<string, string> = {};
+    const out: { productId: string; price: string }[] = [];
+    for (const p of products.data ?? []) {
+      const raw = priceOf(p.id).trim();
+      if (!raw && existing) continue;
+      const parsed = priceSchema.safeParse(raw);
+      if (parsed.success) out.push({ productId: p.id, price: parsed.data });
+      else errs[p.id] = raw ? 'Enter a price, e.g. 40' : 'Enter this store\'s price';
+    }
+    setPriceErrors(errs);
+    return Object.keys(errs).length ? null : out;
+  };
 
   const onSubmit = handleSubmit((values) => {
+    const storePrices = collectPrices();
+    if (!storePrices) {
+      toast.error("Enter this store's price for each product.");
+      return;
+    }
     const onError = (err: unknown) => {
       if (err instanceof ApiError && err.fields) {
         for (const [field, message] of Object.entries(err.fields)) setError(field as keyof FormInput, { message });
@@ -80,13 +112,17 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
       const { openingBalance: _ob, openingCans: _oc, ...rest } = values;
       update.mutate(rest, {
         onSuccess: () => {
-          toast.success('Store updated.');
-          void navigate(`/stores/${existing.id}`, { replace: true });
+          const done = () => {
+            toast.success('Store updated.');
+            void navigate(`/stores/${existing.id}`, { replace: true });
+          };
+          if (storePrices.length === 0) return done();
+          savePrices.mutate({ prices: storePrices }, { onSuccess: done, onError });
         },
         onError,
       });
     } else {
-      create.mutate(values, {
+      create.mutate({ ...values, prices: storePrices }, {
         onSuccess: (store) => {
           toast.success(`${store.name} added.`);
           void navigate(`/stores/${store.id}`, { replace: true });
@@ -103,6 +139,21 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
         <PageBody>
           <Card className="flex flex-col gap-4 p-4">
             <Field label="Store name" autoFocus={!existing} error={errors.name?.message} {...register('name')} />
+          </Card>
+
+          <PricesCard
+            products={products.data}
+            loading={products.isPending || (!existing && suggestions.isPending)}
+            editing={Boolean(existing)}
+            priceOf={priceOf}
+            errors={priceErrors}
+            onChange={(productId, value) => {
+              setPrices((p) => ({ ...p, [productId]: value }));
+              setPriceErrors(({ [productId]: _cleared, ...rest }) => rest);
+            }}
+          />
+
+          <Card className="flex flex-col gap-4 p-4">
             <Field label="Owner name (optional)" autoComplete="off" error={errors.ownerName?.message} {...register('ownerName')} />
             <Field
               label="Phone (optional)"
@@ -129,6 +180,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
             />
             <Field label="Notes (optional)" error={errors.notes?.message} {...register('notes')} />
           </Card>
+
 
           {!existing ? (
             showOpening ? (
@@ -193,5 +245,43 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
         </PageBody>
       </form>
     </>
+  );
+}
+
+function PricesCard({
+  products,
+  loading,
+  editing,
+  priceOf,
+  errors,
+  onChange,
+}: {
+  products: ProductDto[] | undefined;
+  loading: boolean;
+  editing: boolean;
+  priceOf: (productId: string) => string;
+  errors: Record<string, string>;
+  onChange: (productId: string, value: string) => void;
+}) {
+  if (loading) return <Card className="h-28 animate-pulse p-4" aria-busy />;
+  if (!products?.length) return null;
+  return (
+    <Card className="flex flex-col gap-4 p-4">
+      <div>
+        <p className="font-semibold text-ink">Price for this store</p>
+        <p className="text-sm text-muted">
+          {editing ? 'Changes apply to new deliveries. Past bills keep their price.' : 'What this store pays per item. Each store can have its own price.'}
+        </p>
+      </div>
+      {products.map((p) => (
+        <MoneyField
+          key={p.id}
+          label={`Price per ${p.name}`}
+          value={priceOf(p.id)}
+          onChange={(e) => onChange(p.id, sanitizeMoneyInput(e.target.value))}
+          error={errors[p.id]}
+        />
+      ))}
+    </Card>
   );
 }

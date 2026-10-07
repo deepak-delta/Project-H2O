@@ -16,7 +16,7 @@ const BUSINESS_LINKS: MoreLink[] = [
   { to: '/reports', label: 'Reports', icon: ChartColumn },
   { to: '/payments', label: 'Payments', icon: Wallet },
   { to: '/cashflow', label: 'Cash flow & expenses', icon: Receipt },
-  { to: '/products', label: 'Products & prices', icon: Package },
+  { to: '/products', label: 'Products', icon: Package },
 ];
 
 export default function MorePage() {

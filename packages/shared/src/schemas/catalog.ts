@@ -22,7 +22,6 @@ export const productInputSchema = z.object({
     .regex(/^\d{1,4}(\.\d{1,2})?$/, 'Enter litres, e.g. 20')
     .optional()
     .or(z.literal('').transform(() => undefined)),
-  sellingPrice: moneySchema({ allowZero: false }),
   depositAmount: moneySchema().default('0'),
   isReturnable: z.boolean().default(true),
   active: z.boolean().default(true),
@@ -33,7 +32,6 @@ export interface ProductDto {
   id: string;
   name: string;
   capacityLiters: string | null;
-  sellingPrice: string;
   depositAmount: string;
   isReturnable: boolean;
   active: boolean;
@@ -62,8 +60,31 @@ export const storeInputSchema = z.object({
 });
 export type StoreInput = z.input<typeof storeInputSchema>;
 
+// ─── Store prices ────────────────────────────────────────────────────────────
+
+/** What one store pays for one product. Every store has its own price; there is no list price. */
+export const storePriceSchema = z.object({
+  productId: z.string().min(1),
+  price: moneySchema({ allowZero: false }),
+});
+export interface StorePriceDto {
+  productId: string;
+  price: string;
+}
+
+const pricesSchema = z
+  .array(storePriceSchema)
+  .max(20)
+  .refine((prices) => new Set(prices.map((p) => p.productId)).size === prices.length, 'Each product can only have one price');
+
+/** Changing a store's prices later (only future sales are affected). */
+export const storePricesSchema = z.object({ prices: pricesSchema.min(1) });
+export type StorePricesInput = z.input<typeof storePricesSchema>;
+
 /** Creating a store can also bring over balances from a paper notebook. */
 export const createStoreSchema = storeInputSchema.extend({
+  /** This store's price for each product that is on sale. */
+  prices: pricesSchema,
   /** Money the store already owes (negative = advance paid). */
   openingBalance: moneySchema({ allowNegative: true })
     .optional()
@@ -94,6 +115,8 @@ export interface StoreListItem {
   balance: string;
   cansOutstanding: number;
   lastDeliveryAt: string | null;
+  /** This store's price for each product; a product missing here has no price yet. */
+  prices: StorePriceDto[];
 }
 
 export interface StoreDetail extends StoreListItem {

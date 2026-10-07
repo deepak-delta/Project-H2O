@@ -4,6 +4,7 @@ import {
   fromMinor,
   storeInputSchema,
   storeLoginSchema,
+  storePricesSchema,
   storeStatusSchema,
   toMinor,
   type CanMovementDto,
@@ -26,6 +27,7 @@ import { decodeCursor, olderThan, toPage } from '../../lib/pagination';
 import { parse } from '../../lib/validate';
 import { Prisma } from '../../generated/prisma/client';
 import { storeCanBalances } from '../inventory/stock';
+import { latestPrices, setStorePrices, storePriceDtos } from '../prices/prices';
 import { storeBalanceMinor } from '../ledger/balance';
 import { hashPin } from '../auth/pin';
 
@@ -97,8 +99,21 @@ async function listStores(db: Db, supplierId: string, q: z.output<typeof listQue
     LIMIT ${q.limit + 1} OFFSET ${q.offset}`;
 
   const hasMore = rows.length > q.limit;
+  const page = rows.slice(0, q.limit);
+  // Prices travel with the list so a delivery can be priced offline from the cached list.
+  const priceRows = await db.storePrice.findMany({
+    where: { supplierId, storeId: { in: page.map((r) => r.id) } },
+    select: { storeId: true, productId: true, price: true },
+  });
+  const pricesByStore = new Map<string, { productId: string; price: string }[]>();
+  for (const p of priceRows) {
+    const list = pricesByStore.get(p.storeId) ?? [];
+    list.push({ productId: p.productId, price: decToString(p.price) });
+    pricesByStore.set(p.storeId, list);
+  }
+
   return {
-    items: rows.slice(0, q.limit).map(
+    items: page.map(
       (r): StoreListItem => ({
         id: r.id,
         name: r.name,
@@ -108,6 +123,7 @@ async function listStores(db: Db, supplierId: string, q: z.output<typeof listQue
         balance: fromMinor(sqlSumToMinor(r.balance)),
         cansOutstanding: Number(r.cans ?? 0),
         lastDeliveryAt: r.lastDeliveryAt?.toISOString() ?? null,
+        prices: pricesByStore.get(r.id) ?? [],
       }),
     ),
     nextOffset: hasMore ? q.offset + q.limit : null,
@@ -121,7 +137,7 @@ async function loadStoreDetail(db: Db, supplierId: string, storeId: string): Pro
   });
   if (!store) throw notFound('Store');
 
-  const [balance, canMap, products, lastDelivery] = await Promise.all([
+  const [balance, canMap, products, lastDelivery, prices] = await Promise.all([
     storeBalanceMinor(db, supplierId, storeId),
     storeCanBalances(db, supplierId, storeId),
     db.product.findMany({ where: { supplierId }, select: { id: true, name: true, isReturnable: true, active: true } }),
@@ -130,6 +146,7 @@ async function loadStoreDetail(db: Db, supplierId: string, storeId: string): Pro
       orderBy: { deliveredAt: 'desc' },
       include: { items: { select: { productId: true, deliveredQty: true } } },
     }),
+    storePriceDtos(db, supplierId, storeId),
   ]);
 
   const cans = products
@@ -148,6 +165,7 @@ async function loadStoreDetail(db: Db, supplierId: string, storeId: string): Pro
     balance: fromMinor(balance),
     cansOutstanding: cans.reduce((sum, c) => sum + c.quantity, 0),
     cans,
+    prices,
     lastDeliveryAt: lastDelivery?.deliveredAt.toISOString() ?? null,
     lastOrderItems:
       lastDelivery?.items.filter((i) => i.deliveredQty > 0).map((i) => ({ productId: i.productId, quantity: i.deliveredQty })) ?? [],
@@ -183,6 +201,12 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
       const valid = await db.product.count({ where: { id: { in: ids }, supplierId: auth.supplierId, isReturnable: true } });
       if (valid !== new Set(ids).size) throw validationError('Opening cans must be for your returnable products.');
     }
+
+    // A store is created with its price for every product on sale.
+    const onSale = await db.product.findMany({ where: { supplierId: auth.supplierId, active: true }, select: { id: true, name: true } });
+    const priced = new Set(input.prices.map((p) => p.productId));
+    const missing = onSale.find((p) => !priced.has(p.id));
+    if (missing) throw validationError(`Enter this store's price for ${missing.name}.`, { prices: 'Enter a price for every product' });
 
     const storeId = await db.$transaction(async (tx) => {
       const store = await tx.store.create({
@@ -223,10 +247,28 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
           })),
         });
       }
+      await setStorePrices(tx, auth, store.id, input.prices);
       return store.id;
     });
 
     return reply.status(201).send(await loadStoreDetail(db, auth.supplierId, storeId));
+  });
+
+  /** Prices to suggest for a new store: the ones most recently agreed with any store. */
+  app.get('/api/stores/price-suggestions', async (req) => {
+    const auth = requireSupplier(req);
+    return latestPrices(db, auth.supplierId);
+  });
+
+  /** Change what a store pays. Past orders keep the prices they were made at. */
+  app.put('/api/stores/:id/prices', async (req) => {
+    const auth = requireSupplier(req);
+    const { id } = parse(z.object({ id: z.string() }), req.params);
+    const input = parse(storePricesSchema, req.body);
+    const store = await db.store.findFirst({ where: { id, supplierId: auth.supplierId }, select: { id: true } });
+    if (!store) throw notFound('Store');
+    await db.$transaction((tx) => setStorePrices(tx, auth, id, input.prices));
+    return loadStoreDetail(db, auth.supplierId, id);
   });
 
   app.get('/api/stores/:id', async (req) => {

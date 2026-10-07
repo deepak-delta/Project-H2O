@@ -68,7 +68,7 @@ describe('cross-business access is denied', () => {
     expect(edit.statusCode).toBe(404);
     const status = await b.client.post(`/api/stores/${a.storeId}/status`, { status: 'INACTIVE' });
     expect(status.statusCode).toBe(404);
-    const product = await b.client.patch(`/api/products/${a.canId}`, { name: 'x', sellingPrice: '1' });
+    const product = await b.client.patch(`/api/products/${a.canId}`, { name: 'x' });
     expect(product.statusCode).toBe(404);
 
     // And nothing changed for A.

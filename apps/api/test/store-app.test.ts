@@ -67,7 +67,7 @@ describe('store permissions', () => {
     expect(pay.statusCode).toBe(403);
     const stock = await store.post('/api/inventory/movements', { kind: 'PURCHASE', clientId: crypto.randomUUID(), productId: biz.canId, filled: 1, empty: 0 });
     expect(stock.statusCode).toBe(403);
-    const products = await store.patch(`/api/products/${biz.canId}`, { name: 'x', sellingPrice: '1' });
+    const products = await store.patch(`/api/products/${biz.canId}`, { name: 'x' });
     expect(products.statusCode).toBe(403);
   });
 

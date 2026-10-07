@@ -11,6 +11,8 @@ import type {
   StoreInput,
   StoreListItem,
   StoreLoginInput,
+  StorePriceDto,
+  StorePricesInput,
   StoreStatus,
 } from '@wd/shared';
 import { submitOrQueue, type SubmitResult } from '../../offline/engine';
@@ -73,6 +75,25 @@ export function useStore(id: string | undefined) {
     queryKey: qk.store(id ?? ''),
     queryFn: () => api.get<StoreDetail>(`/stores/${id}`),
     enabled: Boolean(id),
+  });
+}
+
+/** Prices to start a new store with: the ones most recently agreed with any store. */
+export function usePriceSuggestions() {
+  return useQuery({
+    queryKey: [...qk.storesRoot, 'price-suggestions'],
+    queryFn: () => api.get<StorePriceDto[]>('/stores/price-suggestions'),
+  });
+}
+
+export function useSetStorePrices(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: StorePricesInput) => api.put<StoreDetail>(`/stores/${id}/prices`, input),
+    onSuccess: (store) => {
+      queryClient.setQueryData(qk.store(id), store);
+      void queryClient.invalidateQueries({ queryKey: qk.storesRoot });
+    },
   });
 }
 

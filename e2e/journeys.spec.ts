@@ -25,7 +25,8 @@ test.describe('supplier journey', () => {
     // Onboarding: first product, then opening stock.
     await expect(page.getByText("Let's set up your business")).toBeVisible();
     await skipBiometricOffer(page);
-    await page.getByLabel('Price per can').fill('50');
+    // No price here: each store gets its own price when it is added.
+    await expect(page.getByLabel('Price per can')).toHaveCount(0);
     await page.getByRole('button', { name: 'Add product' }).click();
     await page.getByRole('textbox', { name: 'Filled cans' }).fill('100');
     await page.getByRole('textbox', { name: 'Empty cans' }).fill('20');
@@ -38,6 +39,10 @@ test.describe('supplier journey', () => {
     await page.getByLabel('Store name').fill('Sri Ganesh Stores');
     await page.getByLabel('Owner name (optional)').fill('Ganesh');
     await page.getByLabel('Phone (optional)').fill(randomPhone());
+    // This store's price is required: saving without it is refused.
+    await page.getByRole('button', { name: 'Add store' }).click();
+    await expect(page.getByText("Enter this store's price").first()).toBeVisible();
+    await page.getByLabel('Price per 20L water can').fill('50');
     await page.getByRole('button', { name: /Already supplying this store/ }).click();
     await page.getByLabel('Amount they owe now').fill('300');
     await expectNoHorizontalScroll(page);

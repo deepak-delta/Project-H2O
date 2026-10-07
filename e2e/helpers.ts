@@ -22,15 +22,20 @@ export interface SupplierSetup {
 }
 
 /**
- * Supplier with a ₹50 returnable can (100 filled / 20 empty) and one store, created through the
+ * Supplier with a returnable can (₹50 for its store) (100 filled / 20 empty) and one store, created through the
  * API. Using `page.request` shares cookies with the browser, so the page is signed in too.
  */
 export async function setupSupplier(request: APIRequestContext, opts: { businessName?: string } = {}): Promise<SupplierSetup> {
   const phone = randomPhone();
   await api(request, 'POST', '/api/auth/signup', { businessName: opts.businessName ?? 'Aqua Fresh', ownerName: 'Ravi Kumar', phone, pin: PIN });
-  const product = await api<{ id: string }>(request, 'POST', '/api/products', { name: '20L can', sellingPrice: '50', isReturnable: true });
+  const product = await api<{ id: string }>(request, 'POST', '/api/products', { name: '20L can', isReturnable: true });
   await api(request, 'POST', '/api/inventory/movements', { kind: 'OPENING', clientId: crypto.randomUUID(), productId: product.id, filled: 100, empty: 20 });
-  const store = await api<{ id: string }>(request, 'POST', '/api/stores', { name: 'Sri Ganesh Stores', ownerName: 'Ganesh', phone: randomPhone() });
+  const store = await api<{ id: string }>(request, 'POST', '/api/stores', {
+    name: 'Sri Ganesh Stores',
+    ownerName: 'Ganesh',
+    phone: randomPhone(),
+    prices: [{ productId: product.id, price: '50' }],
+  });
   return { phone, storeId: store.id, productId: product.id };
 }
 

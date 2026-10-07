@@ -27,9 +27,19 @@ describe('createStoreSchema', () => {
       creditLimit: '',
       openingBalance: '300',
       openingCans: [{ productId: 'p1', quantity: 5 }],
+      prices: [{ productId: 'p1', price: '45' }],
     });
     expect(parsed).toMatchObject({ ownerName: null, phone: '+919811122233', creditLimit: null, openingBalance: '300' });
     expect(createStoreSchema.safeParse(parsed).success).toBe(true);
+  });
+
+  it('needs a positive price and only one price per product', () => {
+    const store = (prices: unknown) => createStoreSchema.safeParse({ name: 'Sri Ganesh', prices }).success;
+    expect(store([{ productId: 'p1', price: '45.50' }])).toBe(true);
+    expect(store(undefined)).toBe(false);
+    expect(store([{ productId: 'p1', price: '0' }])).toBe(false);
+    expect(store([{ productId: 'p1', price: '-1' }])).toBe(false);
+    expect(store([{ productId: 'p1', price: '40' }, { productId: 'p1', price: '50' }])).toBe(false);
   });
 });
 

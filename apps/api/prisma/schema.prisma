@@ -110,16 +110,17 @@ model Supplier {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  users      User[]
-  stores     Store[]
-  products   Product[]
-  orders     Order[]
-  deliveries Delivery[]
-  movements  InventoryMovement[]
-  ledger     LedgerEntry[]
-  payments   Payment[]
-  cashFlow   CashFlowEntry[]
-  auditLogs  AuditLog[]
+  users       User[]
+  stores      Store[]
+  products    Product[]
+  storePrices StorePrice[]
+  orders      Order[]
+  deliveries  Delivery[]
+  movements   InventoryMovement[]
+  ledger      LedgerEntry[]
+  payments    Payment[]
+  cashFlow    CashFlowEntry[]
+  auditLogs   AuditLog[]
 }
 
 model User {
@@ -247,6 +248,7 @@ model Store {
   supplier   Supplier            @relation(fields: [supplierId], references: [id])
   createdBy  User                @relation("StoreCreatedBy", fields: [createdById], references: [id])
   loginUser  User?
+  prices     StorePrice[]
   orders     Order[]
   deliveries Delivery[]
   movements  InventoryMovement[]
@@ -262,7 +264,6 @@ model Product {
   supplierId     String
   name           String
   capacityLiters Decimal? @db.Decimal(8, 2)
-  sellingPrice   Decimal  @db.Decimal(12, 2)
   depositAmount  Decimal  @default(0) @db.Decimal(12, 2)
   /// Reusable containers (20L cans) are tracked with customers; bottled crates are not.
   isReturnable   Boolean  @default(true)
@@ -277,8 +278,28 @@ model Product {
   orderItems    OrderItem[]
   deliveryItems DeliveryItem[]
   movements     InventoryMovement[]
+  storePrices   StorePrice[]
 
   @@index([supplierId, active])
+}
+
+/// What a store pays for a product. Each store negotiates its own price; there is no list price.
+/// Past orders keep their own unit prices, so changing this only affects future sales.
+model StorePrice {
+  id         String   @id @default(cuid())
+  supplierId String
+  storeId    String
+  productId  String
+  price      Decimal  @db.Decimal(12, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@unique([storeId, productId])
+  @@index([supplierId, productId, updatedAt])
 }
 
 // ─── Inventory (stock + can ledger in one table) ──────────────────────────────

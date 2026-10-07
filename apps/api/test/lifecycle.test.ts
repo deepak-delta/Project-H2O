@@ -1,7 +1,7 @@
 import { fromMinor, toMinor } from '@wd/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { closeTestContext, createTestContext, resetDb, type TestContext } from './helpers';
-import { sale, setupBusiness, stockOf, storeDetail, type Business } from './fixtures';
+import { sale, setPrice, setupBusiness, stockOf, storeDetail, type Business } from './fixtures';
 
 let ctx: TestContext;
 let biz: Business;
@@ -68,7 +68,7 @@ describe('delivering an order', () => {
   it('full delivery bills at the price agreed when ordered', async () => {
     const order = await placeOrder(10);
     // Price rises after the order was placed; the order keeps its price.
-    await biz.client.patch(`/api/products/${biz.canId}`, { name: '20L can', sellingPrice: '60', isReturnable: true });
+    await setPrice(biz.client, biz.storeId, biz.canId, '60');
     const res = await deliver(order.id, 10, { payment: { amount: '200', method: 'UPI' } });
     expect(res.statusCode).toBe(201);
     expect(res.json().order).toMatchObject({ status: 'DELIVERED', total: '500.00', amountPaid: '200.00', paymentStatus: 'PARTIAL' });
@@ -110,7 +110,7 @@ describe('delivering an order', () => {
   });
 
   it('rejects products that are not in the order', async () => {
-    const other = await biz.client.post('/api/products', { name: 'Bottle crate', sellingPrice: '120', isReturnable: false });
+    const other = await biz.client.post('/api/products', { name: 'Bottle crate', isReturnable: false });
     const order = await placeOrder(2);
     const res = await biz.client.post(`/api/orders/${order.id}/deliver`, {
       clientId: crypto.randomUUID(),

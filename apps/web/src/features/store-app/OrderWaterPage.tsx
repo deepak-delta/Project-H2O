@@ -40,20 +40,27 @@ export default function OrderWaterPage() {
       </>
     );
   }
+  // Each store orders at its own price; a product without one can't be ordered yet.
+  const priced = products.data.map((p) => ({ id: p.id, name: p.name, price: home.data.prices.find((x) => x.productId === p.id)?.price ?? null }));
+  const firstPriced = priced.findIndex((p) => p.price !== null);
   const initial = Object.fromEntries(
-    products.data.map((p, index) => [
+    priced.map((p, index) => [
       p.id,
-      home.data.lastOrderItems.find((i) => i.productId === p.id)?.quantity ?? (home.data.lastOrderItems.length === 0 && index === 0 ? 1 : 0),
+      p.price === null
+        ? 0
+        : (home.data.lastOrderItems.find((i) => i.productId === p.id)?.quantity ?? (home.data.lastOrderItems.length === 0 && index === firstPriced ? 1 : 0)),
     ]),
   );
-  return <OrderWaterForm products={products.data} initial={initial} />;
+  return <OrderWaterForm products={priced} supplierName={home.data.supplier.businessName} initial={initial} />;
 }
 
 function OrderWaterForm({
   products,
+  supplierName,
   initial,
 }: {
-  products: { id: string; name: string; sellingPrice: string }[];
+  products: { id: string; name: string; price: string | null }[];
+  supplierName: string;
   initial: Record<string, number>;
 }) {
   const format = useMoney();
@@ -69,7 +76,7 @@ function OrderWaterForm({
   const [placed, setPlaced] = useState<{ id: string | null; orderNumber: number | null } | null>(null);
 
   const totalCans = Object.values(quantities).reduce((a, b) => a + b, 0);
-  const estimate = products.reduce((s, p) => s + lineTotalMinor(toMinor(p.sellingPrice), quantities[p.id] ?? 0), 0);
+  const estimate = products.reduce((s, p) => s + (p.price === null ? 0 : lineTotalMinor(toMinor(p.price), quantities[p.id] ?? 0)), 0);
 
   if (placed) {
     return (
@@ -133,15 +140,22 @@ function OrderWaterForm({
         <section>
           <SectionTitle>How many?</SectionTitle>
           <Card className="flex flex-col gap-4 p-4">
-            {products.map((p) => (
-              <QuantityStepper
-                key={p.id}
-                label={p.name}
-                hint={`${format(p.sellingPrice)} each`}
-                value={quantities[p.id] ?? 0}
-                onChange={(v) => setQuantities((q) => ({ ...q, [p.id]: v }))}
-              />
-            ))}
+            {products.map((p) =>
+              p.price !== null ? (
+                <QuantityStepper
+                  key={p.id}
+                  label={p.name}
+                  hint={`${format(p.price)} each`}
+                  value={quantities[p.id] ?? 0}
+                  onChange={(v) => setQuantities((q) => ({ ...q, [p.id]: v }))}
+                />
+              ) : (
+                <div key={p.id}>
+                  <p className="font-medium text-ink">{p.name}</p>
+                  <p className="text-sm text-muted">Not available yet: ask {supplierName} to set your price.</p>
+                </div>
+              ),
+            )}
           </Card>
         </section>
         <section>

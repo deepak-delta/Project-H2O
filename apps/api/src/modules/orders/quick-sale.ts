@@ -7,7 +7,8 @@ import { idempotent } from '../../lib/idempotency';
 import { minorToDec } from '../../lib/money';
 import { resolveOccurredAt } from '../../lib/occurred-at';
 import { storeBalanceMinor } from '../ledger/balance';
-import { parseUnitPrice, recordDelivery, settleOrderTotals } from './delivery';
+import { resolveLinePrices } from '../prices/prices';
+import { recordDelivery, settleOrderTotals } from './delivery';
 import { loadOrderDto } from './order-dto';
 
 type QuickSale = z.output<typeof quickSaleSchema>;
@@ -42,14 +43,16 @@ async function createAndDeliver(tx: Tx, auth: SupplierContext, input: QuickSale)
 
   const products = await tx.product.findMany({ where: { id: { in: input.items.map((i) => i.productId) }, supplierId } });
   const productById = new Map(products.map((p) => [p.id, p]));
-  const lines = input.items.map((item) => {
+  const requested = input.items.map((item) => {
     const product = productById.get(item.productId);
     if (!product) throw notFound('Product');
     if (!product.active && item.quantity > 0) {
       throw validationError(`${product.name} is no longer sold. Turn it back on in Products first.`);
     }
-    return { product, quantity: item.quantity, emptyCollected: item.emptyCollected, unitPrice: parseUnitPrice(item.unitPrice, product) };
+    return { product, quantity: item.quantity, emptyCollected: item.emptyCollected, unitPrice: item.unitPrice };
   });
+  // The store's own prices; a first sale of a product with no price yet sets it.
+  const lines = await resolveLinePrices(tx, auth, store.id, requested, { canSetPrice: true });
 
   // Resolved inside the create path so a replay of an old, already-synced sale still succeeds.
   const now = resolveOccurredAt(input.occurredAt);

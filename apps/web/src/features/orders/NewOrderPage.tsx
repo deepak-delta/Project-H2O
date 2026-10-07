@@ -125,7 +125,7 @@ function QuickSaleForm({ store, products, onChangeStore }: { store: StoreDetail;
       lines={products.map((p) => ({
         productId: p.id,
         name: p.name,
-        unitPrice: p.sellingPrice,
+        unitPrice: store.prices.find((x) => x.productId === p.id)?.price ?? null,
         isReturnable: p.isReturnable,
         initialQty: store.lastOrderItems.find((i) => i.productId === p.id)?.quantity ?? 0,
       }))}

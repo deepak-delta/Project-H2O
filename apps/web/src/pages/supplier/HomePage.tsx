@@ -39,7 +39,7 @@ export default function SupplierHomePage() {
         ) : noProducts ? (
           <Card className="p-4">
             <p className="text-lg font-semibold text-ink">Let's set up your business</p>
-            <p className="mb-4 text-sm text-muted">Step 1 of 3: what do you deliver, and at what price?</p>
+            <p className="mb-4 text-sm text-muted">Step 1 of 3: what do you deliver? You'll set each store's price when you add it.</p>
             <ProductForm onDone={setNewProduct} />
           </Card>
         ) : noStores ? (

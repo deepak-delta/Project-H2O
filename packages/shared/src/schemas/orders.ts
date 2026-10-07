@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { OrderListItem, PaymentDto } from './sales';
 import { optionalNote, paymentAtSaleSchema } from './sales';
-import type { StoreCans } from './catalog';
+import type { StoreCans, StorePriceDto } from './catalog';
 import { clientIdSchema, moneySchema, occurredAtSchema, phoneSchema, pinSchema, quantitySchema } from './common';
 
 // ─── Placing an order (store app, or supplier taking a phone order) ──────────
@@ -91,4 +91,6 @@ export interface StoreHomeDto {
   recentPayments: PaymentDto[];
   /** Quantities of the last delivery, to prefill "Order water". */
   lastOrderItems: { productId: string; quantity: number }[];
+  /** What this store pays per product. A product missing here can't be ordered yet. */
+  prices: StorePriceDto[];
 }

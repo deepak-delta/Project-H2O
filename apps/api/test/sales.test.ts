@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { closeTestContext, createTestContext, resetDb, type TestContext } from './helpers';
-import { addStock, createProduct, createStore, sale, setupBusiness, stockOf, storeDetail, type Business } from './fixtures';
+import { addStock, createProduct, createStore, sale, setPrice, setupBusiness, stockOf, storeDetail, type Business } from './fixtures';
 
 let ctx: TestContext;
 let biz: Business;
@@ -128,7 +128,8 @@ describe('quick sale — cans and stock', () => {
   });
 
   it('non-returnable products leave stock but are not tracked at the store', async () => {
-    const crateId = await createProduct(biz.client, { name: 'Bottle crate', sellingPrice: '120', isReturnable: false });
+    const crateId = await createProduct(biz.client, { name: 'Bottle crate', isReturnable: false });
+    await setPrice(biz.client, biz.storeId, crateId, '120');
     await addStock(biz.client, crateId, 30);
     await quickSale(sale(biz.storeId, [{ productId: crateId, quantity: 5 }], { amount: '0' }));
     expect(await stockOf(biz.client, crateId)).toMatchObject({ filled: 25, withCustomers: 0 });

@@ -19,6 +19,7 @@ import { decToMinor, decToString, minorToDec } from '../../lib/money';
 import { resolveOccurredAt } from '../../lib/occurred-at';
 import { storeBalanceMinor } from '../ledger/balance';
 import { reversePaymentInTx } from '../payments/reverse';
+import { resolveLinePrices } from '../prices/prices';
 import { lockOrder, recordDelivery, settleOrderTotals } from './delivery';
 import { loadOrderDto } from './order-dto';
 
@@ -43,12 +44,14 @@ export async function placeOrder(db: Db, auth: AuthContext, input: z.output<type
           where: { id: { in: items.map((i) => i.productId) }, supplierId: auth.supplierId, active: true },
         });
         const byId = new Map(products.map((p) => [p.id, p]));
-        const lines = items.map((i) => {
+        const requested = items.map((i) => {
           const product = byId.get(i.productId);
           if (!product) throw validationError('One of the products is no longer available. Please refresh.');
-          const unitPrice = decToMinor(product.sellingPrice);
-          return { productId: product.id, quantity: i.quantity, unitPrice, lineTotal: unitPrice * i.quantity };
+          return { product, quantity: i.quantity };
         });
+        // Stores order at their own agreed prices; they cannot set a price themselves.
+        const priced = await resolveLinePrices(tx, auth, storeId, requested, { canSetPrice: false });
+        const lines = priced.map((l) => ({ productId: l.product.id, quantity: l.quantity, unitPrice: l.unitPrice, lineTotal: l.unitPrice * l.quantity }));
         const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
 
         let deliveryDate: Date | null = null;

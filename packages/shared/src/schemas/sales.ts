@@ -24,7 +24,10 @@ export const saleItemSchema = z.object({
   quantity: quantitySchema,
   /** Empty cans of this product collected back at the same visit. */
   emptyCollected: quantitySchema.default(0),
-  /** Optional special price for this store; defaults to the product price. */
+  /**
+   * Price per can for this sale. Defaults to the store's price. When the store has no price for
+   * the product yet, this is required and becomes the store's price.
+   */
   unitPrice: moneySchema({ allowZero: true }).optional(),
 });
 

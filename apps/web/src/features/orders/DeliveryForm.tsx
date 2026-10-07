@@ -22,7 +22,8 @@ export const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] =
 export interface DeliveryLine {
   productId: string;
   name: string;
-  unitPrice: string;
+  /** This store's price; null when the store has no price for the product yet (asked here). */
+  unitPrice: string | null;
   isReturnable: boolean;
   /** Prefilled quantity (last order, or what is still to be delivered). */
   initialQty: number;
@@ -31,7 +32,8 @@ export interface DeliveryLine {
 }
 
 export interface DeliveryValues {
-  items: { productId: string; quantity: number; emptyCollected: number }[];
+  /** `unitPrice` only for products the store had no price for: it becomes the store's price. */
+  items: { productId: string; quantity: number; emptyCollected: number; unitPrice?: string }[];
   payment: { amount: string; method: PaymentMethod };
 }
 
@@ -66,9 +68,13 @@ export function DeliveryForm({ store, lines, title, back, headerAction, pending,
   const [otherAmount, setOtherAmount] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('CASH');
   const [localError, setLocalError] = useState<string | null>(null);
+  const [newPrices, setNewPrices] = useState<Record<string, string>>({});
 
   const heldBy = useMemo(() => new Map(store.cans.map((c) => [c.productId, c.quantity])), [store.cans]);
-  const totalMinor = lines.reduce((sum, l) => sum + lineTotalMinor(toMinor(l.unitPrice), quantities[l.productId] ?? 0), 0);
+  const newPriceValid = (productId: string) => isMoneyString(newPrices[productId] ?? '') && toMinor(newPrices[productId] ?? '0') > 0;
+  const priceMinor = (l: DeliveryLine) => (l.unitPrice !== null ? toMinor(l.unitPrice) : newPriceValid(l.productId) ? toMinor(newPrices[l.productId] ?? '0') : 0);
+  const totalMinor = lines.reduce((sum, l) => sum + lineTotalMinor(priceMinor(l), quantities[l.productId] ?? 0), 0);
+  const unpriced = lines.filter((l) => l.unitPrice === null && (quantities[l.productId] ?? 0) > 0);
   const otherValid = isMoneyString(otherAmount) && toMinor(otherAmount) >= 0;
   const paidMinor = payMode === 'full' ? totalMinor : payMode === 'credit' ? 0 : otherValid ? toMinor(otherAmount) : 0;
   const balanceMinor = toMinor(store.balance);
@@ -81,12 +87,19 @@ export function DeliveryForm({ store, lines, title, back, headerAction, pending,
   const submit = () => {
     setLocalError(null);
     if (totalCans === 0) return setLocalError('Enter how many cans were delivered.');
+    const missing = unpriced.find((l) => !newPriceValid(l.productId));
+    if (missing) return setLocalError(`Enter this store's price for ${missing.name}.`);
     if (payMode === 'other' && !otherValid) return setLocalError('Enter the amount received.');
     onSubmit(
       {
         items: lines
           .filter((l) => (quantities[l.productId] ?? 0) > 0 || (empties[l.productId] ?? 0) > 0)
-          .map((l) => ({ productId: l.productId, quantity: quantities[l.productId] ?? 0, emptyCollected: empties[l.productId] ?? 0 })),
+          .map((l) => ({
+            productId: l.productId,
+            quantity: quantities[l.productId] ?? 0,
+            emptyCollected: empties[l.productId] ?? 0,
+            ...(l.unitPrice === null && (quantities[l.productId] ?? 0) > 0 ? { unitPrice: newPrices[l.productId] } : {}),
+          })),
         payment: { amount: fromMinor(paidMinor), method },
       },
       {
@@ -117,13 +130,22 @@ export function DeliveryForm({ store, lines, title, back, headerAction, pending,
           <SectionTitle>Delivered</SectionTitle>
           <Card className="flex flex-col gap-4 p-4">
             {lines.map((l) => (
-              <QuantityStepper
-                key={l.productId}
-                label={l.name}
-                hint={[`${format(l.unitPrice)} each`, l.note].filter(Boolean).join(' · ')}
-                value={quantities[l.productId] ?? 0}
-                onChange={(v) => setQuantities((q) => ({ ...q, [l.productId]: v }))}
-              />
+              <div key={l.productId} className="flex flex-col gap-2">
+                <QuantityStepper
+                  label={l.name}
+                  hint={[l.unitPrice !== null ? `${format(l.unitPrice)} each` : 'No price for this store yet', l.note].filter(Boolean).join(' · ')}
+                  value={quantities[l.productId] ?? 0}
+                  onChange={(v) => setQuantities((q) => ({ ...q, [l.productId]: v }))}
+                />
+                {l.unitPrice === null && (quantities[l.productId] ?? 0) > 0 ? (
+                  <MoneyField
+                    label={`Price per ${l.name} for this store`}
+                    hint="Saved for this store, so you only enter it once."
+                    value={newPrices[l.productId] ?? ''}
+                    onChange={(e) => setNewPrices((p) => ({ ...p, [l.productId]: sanitizeMoneyInput(e.target.value) }))}
+                  />
+                ) : null}
+              </div>
             ))}
           </Card>
         </section>

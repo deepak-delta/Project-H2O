@@ -13,7 +13,6 @@ export function toProductDto(p: Product): ProductDto {
     id: p.id,
     name: p.name,
     capacityLiters: p.capacityLiters ? p.capacityLiters.toString() : null,
-    sellingPrice: decToString(p.sellingPrice),
     depositAmount: decToString(p.depositAmount),
     isReturnable: p.isReturnable,
     active: p.active,
@@ -45,7 +44,6 @@ export function registerProductRoutes(app: FastifyInstance, { db }: AppDeps): vo
         createdById: auth.userId,
         name: input.name,
         capacityLiters: input.capacityLiters ?? null,
-        sellingPrice: input.sellingPrice,
         depositAmount: input.depositAmount,
         isReturnable: input.isReturnable,
         active: input.active,
@@ -72,33 +70,15 @@ export function registerProductRoutes(app: FastifyInstance, { db }: AppDeps): vo
       }
     }
 
-    // Price changes only affect future sales: past orders keep their own unit prices.
-    const product = await db.$transaction(async (tx) => {
-      const updated = await tx.product.update({
-        where: { id },
-        data: {
-          name: input.name,
-          capacityLiters: input.capacityLiters ?? null,
-          sellingPrice: input.sellingPrice,
-          depositAmount: input.depositAmount,
-          isReturnable: input.isReturnable,
-          active: input.active,
-        },
-      });
-      if (!existing.sellingPrice.equals(updated.sellingPrice)) {
-        await tx.auditLog.create({
-          data: {
-            supplierId: auth.supplierId,
-            actorId: auth.userId,
-            action: 'PRICE_CHANGED',
-            entity: 'Product',
-            entityId: id,
-            before: { sellingPrice: decToString(existing.sellingPrice) },
-            after: { sellingPrice: decToString(updated.sellingPrice) },
-          },
-        });
-      }
-      return updated;
+    const product = await db.product.update({
+      where: { id },
+      data: {
+        name: input.name,
+        capacityLiters: input.capacityLiters ?? null,
+        depositAmount: input.depositAmount,
+        isReturnable: input.isReturnable,
+        active: input.active,
+      },
     });
     return toProductDto(product);
   });

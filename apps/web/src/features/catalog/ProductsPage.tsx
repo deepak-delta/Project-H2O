@@ -11,7 +11,6 @@ import { ListCard, ListRow } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Field } from '../../components/ui/Field';
 import { ErrorRetry } from '../../components/ui/LoadMore';
-import { MoneyField, sanitizeMoneyInput } from '../../components/ui/MoneyField';
 import { Segmented } from '../../components/ui/Segmented';
 import { Sheet } from '../../components/ui/Sheet';
 import { ListSkeleton } from '../../components/ui/Skeleton';
@@ -31,7 +30,8 @@ export default function ProductsPage() {
   return (
     <>
       <PageHeader
-        title="Products & prices"
+        title="Products"
+        subtitle="Prices are set for each store, on the store's page."
         back="/more"
         action={
           <Button variant="ghost" icon={<Plus className="size-5" />} onClick={() => setEditing('new')}>
@@ -61,12 +61,7 @@ export default function ProductsPage() {
                 subtitle={[p.isReturnable ? 'Returnable can' : 'Not returned', p.depositAmount !== '0.00' ? `deposit ${format(p.depositAmount)}` : null]
                   .filter(Boolean)
                   .join(' · ')}
-                trailing={
-                  <span className="flex flex-col items-end gap-1">
-                    <span className="font-semibold tabular">{format(p.sellingPrice)}</span>
-                    {!p.active ? <Badge>Hidden</Badge> : null}
-                  </span>
-                }
+                trailing={!p.active ? <Badge>Hidden</Badge> : undefined}
               />
             ))}
           </ListCard>
@@ -94,7 +89,6 @@ export function ProductForm({ product, onDone }: { product?: ProductDto; onDone:
     defaultValues: {
       name: product?.name ?? '20L water can',
       capacityLiters: product?.capacityLiters ?? '20',
-      sellingPrice: product?.sellingPrice.replace(/\.00$/, '') ?? '',
       depositAmount: product?.depositAmount.replace(/\.00$/, '') ?? '0',
       isReturnable: product?.isReturnable ?? true,
       active: product?.active ?? true,
@@ -123,21 +117,7 @@ export function ProductForm({ product, onDone }: { product?: ProductDto; onDone:
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
       <Field label="Name" error={errors.name?.message} {...register('name')} />
-      <div className="grid grid-cols-2 gap-3">
-        <Controller
-          control={control}
-          name="sellingPrice"
-          render={({ field }) => (
-            <MoneyField
-              label="Price per can"
-              value={field.value}
-              onChange={(e) => field.onChange(sanitizeMoneyInput(e.target.value))}
-              error={errors.sellingPrice?.message}
-            />
-          )}
-        />
-        <Field label="Litres" inputMode="decimal" error={errors.capacityLiters?.message} {...register('capacityLiters')} />
-      </div>
+      <Field label="Litres" inputMode="decimal" error={errors.capacityLiters?.message} {...register('capacityLiters')} />
       <Controller
         control={control}
         name="isReturnable"

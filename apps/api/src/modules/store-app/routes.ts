@@ -4,6 +4,7 @@ import type { AppDeps } from '../../app';
 import { requireStore } from '../../lib/auth-context';
 import { storeCanBalances } from '../inventory/stock';
 import { storeBalanceMinor } from '../ledger/balance';
+import { storePriceDtos } from '../prices/prices';
 import { orderListInclude, toOrderListItem } from '../orders/order-dto';
 import { paymentInclude, toPaymentDto } from '../payments/routes';
 
@@ -15,7 +16,7 @@ export function registerStoreAppRoutes(app: FastifyInstance, { db }: AppDeps): v
     const { supplierId, storeId } = requireStore(req);
     const scope = { supplierId, storeId };
 
-    const [store, supplier, balance, canMap, products, lastDelivery, openOrders, recentOrders, recentPayments] = await Promise.all([
+    const [store, supplier, balance, canMap, products, lastDelivery, openOrders, recentOrders, recentPayments, prices] = await Promise.all([
       db.store.findFirstOrThrow({ where: { id: storeId, supplierId }, select: { id: true, name: true } }),
       db.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { businessName: true, phone: true } }),
       storeBalanceMinor(db, supplierId, storeId),
@@ -29,6 +30,7 @@ export function registerStoreAppRoutes(app: FastifyInstance, { db }: AppDeps): v
       db.order.findMany({ where: { ...scope, status: { in: [...OPEN] } }, include: orderListInclude, orderBy: { orderDate: 'desc' }, take: 5 }),
       db.order.findMany({ where: scope, include: orderListInclude, orderBy: [{ orderDate: 'desc' }, { id: 'desc' }], take: 5 }),
       db.payment.findMany({ where: scope, include: paymentInclude, orderBy: [{ paymentDate: 'desc' }, { id: 'desc' }], take: 5 }),
+      storePriceDtos(db, supplierId, storeId),
     ]);
 
     const cans = products
@@ -54,6 +56,7 @@ export function registerStoreAppRoutes(app: FastifyInstance, { db }: AppDeps): v
       recentPayments: recentPayments.map(toPaymentDto),
       lastOrderItems:
         lastDelivery?.items.filter((i) => i.deliveredQty > 0).map((i) => ({ productId: i.productId, quantity: i.deliveredQty })) ?? [],
+      prices,
     };
   });
 }

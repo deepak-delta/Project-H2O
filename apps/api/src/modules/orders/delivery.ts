@@ -1,4 +1,4 @@
-import { lineTotalMinor, toMinor, type Minor, type PaymentMethod } from '@wd/shared';
+import { lineTotalMinor, type Minor, type PaymentMethod } from '@wd/shared';
 import type { SupplierContext } from '../../lib/auth-context';
 import type { Tx } from '../../lib/db';
 import { validationError } from '../../lib/errors';
@@ -163,8 +163,4 @@ export async function settleOrderTotals(tx: Tx, orderId: string, extraDiscount: 
 /** Row lock so a delivery, a cancellation and a status change can't interleave on one order. */
 export async function lockOrder(tx: Tx, orderId: string): Promise<void> {
   await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE`;
-}
-
-export function parseUnitPrice(override: string | undefined, product: Product): Minor {
-  return override !== undefined ? toMinor(override) : decToMinor(product.sellingPrice);
 }

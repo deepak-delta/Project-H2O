@@ -107,3 +107,15 @@ export async function signupSupplier(
   if (res.statusCode !== 201) throw new Error(`signup failed: ${res.body}`);
   return { client, input, me: res.json<{ user: { id: string; supplierId: string } }>() };
 }
+
+/**
+ * Test-only: rewrite timestamps on append-only history rows (to fake past days). The database
+ * refuses such edits from the app; this runs them with triggers off inside one transaction.
+ * Only timestamps may be changed here, so the running totals stay correct.
+ */
+export async function rewriteHistoryForTest(db: TestContext['db'], fn: (tx: Parameters<Parameters<TestContext['db']['$transaction']>[0]>[0]) => Promise<unknown>): Promise<void> {
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe('SET LOCAL session_replication_role = replica');
+    await fn(tx);
+  });
+}

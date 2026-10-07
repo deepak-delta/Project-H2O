@@ -78,24 +78,14 @@ async function listStores(db: Db, supplierId: string, q: z.output<typeof listQue
           ? Prisma.sql`"lastDeliveryAt" DESC NULLS LAST, s.name ASC`
           : Prisma.sql`s.name ASC`;
 
+  // Balances and cans come from ClientTotals (trigger-maintained): no re-adding of history.
   const rows = await db.$queryRaw<StoreRow[]>`
-    WITH bal AS (
-      SELECT "storeId", SUM(amount) AS balance
-      FROM "LedgerEntry" WHERE "supplierId" = ${supplierId}
-      GROUP BY "storeId"
-    ), cans AS (
-      SELECT "storeId", SUM("withCustomersDelta") AS cans,
-             MAX("occurredAt") FILTER (WHERE type = 'DELIVERY') AS "lastDeliveryAt"
-      FROM "InventoryMovement" WHERE "supplierId" = ${supplierId} AND "storeId" IS NOT NULL
-      GROUP BY "storeId"
-    )
     SELECT s.id, s.name, s.category::text AS category, s."categoryOther", s."ownerName", s.phone, s.status,
-           COALESCE(bal.balance, 0) AS balance,
-           COALESCE(cans.cans, 0) AS cans,
-           cans."lastDeliveryAt"
+           COALESCE(t.balance, 0) AS balance,
+           COALESCE(t.cans, 0) AS cans,
+           t."lastDeliveryAt"
     FROM "Store" s
-    LEFT JOIN bal ON bal."storeId" = s.id
-    LEFT JOIN cans ON cans."storeId" = s.id
+    LEFT JOIN "ClientTotals" t ON t."storeId" = s.id
     WHERE s."supplierId" = ${supplierId}
       AND s.status = ${status}::"StoreStatus"
       AND (${pattern}::text IS NULL
@@ -104,8 +94,8 @@ async function listStores(db: Db, supplierId: string, q: z.output<typeof listQue
            OR s."categoryOther" ILIKE ${pattern}
            OR (s.category <> 'OTHER' AND s.category::text ILIKE ${pattern})
            OR (${phonePattern}::text IS NOT NULL AND s.phone LIKE ${phonePattern}))
-      AND (${q.filter} <> 'owes' OR COALESCE(bal.balance, 0) > 0)
-      AND (${q.filter} <> 'cans' OR COALESCE(cans.cans, 0) > 0)
+      AND (${q.filter} <> 'owes' OR COALESCE(t.balance, 0) > 0)
+      AND (${q.filter} <> 'cans' OR COALESCE(t.cans, 0) > 0)
     ORDER BY ${orderBy}
     LIMIT ${q.limit + 1} OFFSET ${q.offset}`;
 

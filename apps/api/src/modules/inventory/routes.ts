@@ -109,15 +109,13 @@ export function registerInventoryRoutes(app: FastifyInstance, { db }: AppDeps): 
       { storeId: string; storeName: string; phone: string | null; quantity: bigint; lastDeliveryAt: Date | null }[]
     >`
       SELECT s.id AS "storeId", s.name AS "storeName", s.phone,
-             SUM(m."withCustomersDelta") AS quantity,
-             MAX(m."occurredAt") FILTER (WHERE m.type = 'DELIVERY') AS "lastDeliveryAt"
-      FROM "InventoryMovement" m
-      JOIN "Store" s ON s.id = m."storeId"
-      WHERE m."supplierId" = ${auth.supplierId}
-        AND m."storeId" IS NOT NULL
-        AND (${productId ?? null}::text IS NULL OR m."productId" = ${productId ?? null})
-      GROUP BY s.id
-      HAVING SUM(m."withCustomersDelta") <> 0
+             (CASE WHEN ${productId ?? null}::text IS NULL THEN t.cans ELSE c.cans END)::bigint AS quantity,
+             t."lastDeliveryAt"
+      FROM "ClientTotals" t
+      JOIN "Store" s ON s.id = t."storeId"
+      LEFT JOIN "ClientCans" c ON c."storeId" = t."storeId" AND c."productId" = ${productId ?? null}
+      WHERE t."supplierId" = ${auth.supplierId}
+        AND (CASE WHEN ${productId ?? null}::text IS NULL THEN t.cans ELSE COALESCE(c.cans, 0) END) <> 0
       ORDER BY quantity DESC, s.name ASC
       LIMIT 200`;
     return rows.map(

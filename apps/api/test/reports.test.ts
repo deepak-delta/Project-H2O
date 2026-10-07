@@ -1,6 +1,6 @@
 import { addDays, toMinor, zonedDateKey } from '@wd/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { closeTestContext, createTestContext, resetDb, type TestContext } from './helpers';
+import { closeTestContext, createTestContext, resetDb, type TestContext, rewriteHistoryForTest } from './helpers';
 import { createStore, sale, setupBusiness, stockOf, storeUserClient, type Business } from './fixtures';
 
 let ctx: TestContext;
@@ -29,8 +29,10 @@ async function quickSale(storeId: string, quantity: number, paid: string) {
 
 /** Moves every record of an order (and its payments) to a given instant. */
 async function backdate(orderId: string, at: Date) {
-  await ctx.db.ledgerEntry.updateMany({ where: { orderId }, data: { occurredAt: at } });
-  await ctx.db.inventoryMovement.updateMany({ where: { orderId }, data: { occurredAt: at } });
+  await rewriteHistoryForTest(ctx.db, async (tx) => {
+    await tx.ledgerEntry.updateMany({ where: { orderId }, data: { occurredAt: at } });
+    await tx.inventoryMovement.updateMany({ where: { orderId }, data: { occurredAt: at } });
+  });
   await ctx.db.delivery.updateMany({ where: { orderId }, data: { deliveredAt: at } });
   await ctx.db.payment.updateMany({ where: { orderId }, data: { paymentDate: at } });
   await ctx.db.order.update({ where: { id: orderId }, data: { orderDate: at } });
@@ -165,10 +167,12 @@ describe('other reports', () => {
   it('inventory: opening + movements = closing = current stock', async () => {
     const before = await ctx.db.inventoryMovement.findMany();
     // Push the opening stock into the past so it shows as the opening figure.
-    await ctx.db.inventoryMovement.updateMany({
-      where: { id: { in: before.map((m) => m.id) } },
-      data: { occurredAt: new Date(Date.now() - 3 * 86_400_000) },
-    });
+    await rewriteHistoryForTest(ctx.db, (tx) =>
+      tx.inventoryMovement.updateMany({
+        where: { id: { in: before.map((m) => m.id) } },
+        data: { occurredAt: new Date(Date.now() - 3 * 86_400_000) },
+      }),
+    );
     await quickSale(biz.storeId, 10, '0');
     await biz.client.post(`/api/stores/${biz.storeId}/can-returns`, { clientId: crypto.randomUUID(), items: [{ productId: biz.canId, quantity: 6 }] });
     await biz.client.post('/api/inventory/movements', { kind: 'REFILL', clientId: crypto.randomUUID(), productId: biz.canId, quantity: 15 });

@@ -101,23 +101,13 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
     const rows = await db.$queryRaw<
       { storeId: string; storeName: string; phone: string | null; balance: unknown; cans: unknown; lastDeliveryAt: Date | null; lastPaymentAt: Date | null }[]
     >`
-      WITH bal AS (
-        SELECT "storeId", SUM(amount) AS balance FROM "LedgerEntry" WHERE "supplierId" = ${supplierId} GROUP BY "storeId"
-      ), cans AS (
-        SELECT "storeId", SUM("withCustomersDelta") AS cans, MAX("occurredAt") FILTER (WHERE type = 'DELIVERY') AS last_delivery
-        FROM "InventoryMovement" WHERE "supplierId" = ${supplierId} AND "storeId" IS NOT NULL GROUP BY "storeId"
-      ), pay AS (
-        SELECT "storeId", MAX("paymentDate") AS last_payment
-        FROM "Payment" WHERE "supplierId" = ${supplierId} AND "reversedAt" IS NULL GROUP BY "storeId"
-      )
-      SELECT s.id AS "storeId", s.name AS "storeName", s.phone, bal.balance,
-             COALESCE(cans.cans, 0) AS cans, cans.last_delivery AS "lastDeliveryAt", pay.last_payment AS "lastPaymentAt"
-      FROM "Store" s
-      JOIN bal ON bal."storeId" = s.id
-      LEFT JOIN cans ON cans."storeId" = s.id
-      LEFT JOIN pay ON pay."storeId" = s.id
-      WHERE s."supplierId" = ${supplierId} AND bal.balance > 0
-      ORDER BY bal.balance DESC, s.name ASC
+      SELECT s.id AS "storeId", s.name AS "storeName", s.phone, t.balance,
+             t.cans, t."lastDeliveryAt",
+             (SELECT MAX(p."paymentDate") FROM "Payment" p WHERE p."supplierId" = ${supplierId} AND p."storeId" = s.id AND p."reversedAt" IS NULL) AS "lastPaymentAt"
+      FROM "ClientTotals" t
+      JOIN "Store" s ON s.id = t."storeId"
+      WHERE t."supplierId" = ${supplierId} AND t.balance > 0
+      ORDER BY t.balance DESC, s.name ASC
       LIMIT 2000`;
 
     let total = 0;
@@ -148,7 +138,23 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
 
     const [products, opening, movements] = await Promise.all([
       db.product.findMany({ where: { supplierId }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }], select: { id: true, name: true } }),
-      db.inventoryMovement.groupBy({ by: ['productId'], where: { supplierId, occurredAt: { lt: range.start } }, _sum: sum }),
+      // Opening = today's running total − everything recorded since the period began. One
+      // statement (one snapshot), and it only sums the recent movements, not the whole history.
+      db.$queryRaw<{ productId: string; filled: number; empty: number; withCustomers: number; damaged: number }[]>`
+        SELECT s."productId",
+               s.filled - COALESCE(m.filled, 0)::int AS filled,
+               s.empty - COALESCE(m.empty, 0)::int AS empty,
+               s."withCustomers" - COALESCE(m.with_clients, 0)::int AS "withCustomers",
+               s.damaged - COALESCE(m.damaged, 0)::int AS damaged
+        FROM "ProductStock" s
+        LEFT JOIN (
+          SELECT "productId", SUM("filledDelta") AS filled, SUM("emptyDelta") AS empty,
+                 SUM("withCustomersDelta") AS with_clients, SUM("damagedDelta") AS damaged
+          FROM "InventoryMovement"
+          WHERE "supplierId" = ${supplierId} AND "occurredAt" >= ${range.start}
+          GROUP BY "productId"
+        ) m ON m."productId" = s."productId"
+        WHERE s."supplierId" = ${supplierId}`,
       db.inventoryMovement.groupBy({
         by: ['productId', 'type'],
         where: { supplierId, occurredAt: { gte: range.start, lt: range.end } },
@@ -175,7 +181,9 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
       products: products
         .map((p) => {
           const open = opening.find((o) => o.productId === p.id);
-          const openCounts = open ? counts(open._sum) : ZERO;
+          const openCounts: StockCounts = open
+            ? { filled: open.filled, empty: open.empty, withCustomers: open.withCustomers, damaged: open.damaged }
+            : ZERO;
           const moves = movements.filter((m) => m.productId === p.id).map((m) => ({ type: m.type, ...counts(m._sum) }));
           return {
             productId: p.id,

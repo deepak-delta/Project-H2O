@@ -263,6 +263,8 @@ model Store {
   createdBy  User                @relation("StoreCreatedBy", fields: [createdById], references: [id])
   loginUser  User?
   prices     StorePrice[]
+  totals     ClientTotals?
+  canTotals  ClientCans[]
   orders     Order[]
   deliveries Delivery[]
   movements  InventoryMovement[]
@@ -293,6 +295,8 @@ model Product {
   deliveryItems DeliveryItem[]
   movements     InventoryMovement[]
   storePrices   StorePrice[]
+  stock         ProductStock?
+  clientCans    ClientCans[]
 
   @@index([supplierId, active])
 }
@@ -562,4 +566,47 @@ model AuditLog {
 
   @@index([supplierId, entity, entityId])
   @@index([supplierId, createdAt])
+}
+
+/// Running stock per product, kept by a database trigger on every InventoryMovement insert
+/// (in the same transaction). Always equals the sum of the movements; never written by the app.
+model ProductStock {
+  productId     String @id
+  supplierId    String
+  filled        Int    @default(0)
+  empty         Int    @default(0)
+  withCustomers Int    @default(0)
+  damaged       Int    @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+}
+
+/// Running totals per client, kept by database triggers on LedgerEntry and InventoryMovement
+/// inserts. balance = sum of the client's ledger; cans = sum of cans moved to/from the client.
+model ClientTotals {
+  storeId        String    @id
+  supplierId     String
+  balance        Decimal   @default(0) @db.Decimal(14, 2)
+  cans           Int       @default(0)
+  lastDeliveryAt DateTime?
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId, balance])
+}
+
+/// Cans of each product at each client, kept by a trigger like ClientTotals.
+model ClientCans {
+  storeId    String
+  productId  String
+  supplierId String
+  cans       Int    @default(0)
+
+  store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, productId])
+  @@index([supplierId, productId])
 }

@@ -9,41 +9,30 @@ export interface StockLevels {
 
 const ZERO: StockLevels = { filled: 0, empty: 0, withCustomers: 0, damaged: 0 };
 
-/** Current stock per product = sum of every movement ever recorded. */
+/**
+ * Current stock per product. Read from ProductStock, which a database trigger keeps equal to the
+ * sum of every movement (updated in the same transaction as each movement), so this is one row
+ * per product however long the history grows.
+ */
 export async function stockByProduct(
   db: Db | Tx,
   supplierId: string,
   productIds?: string[],
 ): Promise<Map<string, StockLevels>> {
-  const rows = await db.inventoryMovement.groupBy({
-    by: ['productId'],
+  const rows = await db.productStock.findMany({
     where: { supplierId, ...(productIds ? { productId: { in: productIds } } : {}) },
-    _sum: { filledDelta: true, emptyDelta: true, withCustomersDelta: true, damagedDelta: true },
   });
-  const map = new Map<string, StockLevels>();
-  for (const r of rows) {
-    map.set(r.productId, {
-      filled: r._sum.filledDelta ?? 0,
-      empty: r._sum.emptyDelta ?? 0,
-      withCustomers: r._sum.withCustomersDelta ?? 0,
-      damaged: r._sum.damagedDelta ?? 0,
-    });
-  }
-  return map;
+  return new Map(rows.map((r) => [r.productId, { filled: r.filled, empty: r.empty, withCustomers: r.withCustomers, damaged: r.damaged }]));
 }
 
 export function levelsOf(map: Map<string, StockLevels>, productId: string): StockLevels {
   return map.get(productId) ?? ZERO;
 }
 
-/** Cans of each product currently held by one store. */
+/** Cans of each product currently held by one client (trigger-maintained, like ProductStock). */
 export async function storeCanBalances(db: Db | Tx, supplierId: string, storeId: string): Promise<Map<string, number>> {
-  const rows = await db.inventoryMovement.groupBy({
-    by: ['productId'],
-    where: { supplierId, storeId },
-    _sum: { withCustomersDelta: true },
-  });
-  return new Map(rows.map((r) => [r.productId, r._sum.withCustomersDelta ?? 0]));
+  const rows = await db.clientCans.findMany({ where: { supplierId, storeId }, select: { productId: true, cans: true } });
+  return new Map(rows.map((r) => [r.productId, r.cans]));
 }
 
 /**

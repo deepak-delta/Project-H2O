@@ -1,19 +1,24 @@
-import { createStaffSchema, staffPinSchema, updateStaffSchema, type StaffDto } from '@wd/shared';
+import { createStaffSchema, staffPinSchema, updateStaffSchema, zonedDayRange, type StaffDto } from '@wd/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Services } from '../../app';
 import { requireAuth, requireSupplier } from '../../lib/auth-context';
 import { audit } from '../../lib/audit';
+import { getBusinessSettings } from '../../lib/business';
 import type { Db, Tx } from '../../lib/db';
 import { conflict, forbidden, notFound } from '../../lib/errors';
 import { parse } from '../../lib/validate';
 import { hashPin } from '../auth/pin';
-import { staffToday } from './today';
+import { staffDayTotals, staffToday } from './today';
 
 const idParams = z.object({ id: z.string().min(1) });
 
-async function toStaffDto(db: Db, supplierId: string, u: { id: string; name: string; phone: string; active: boolean; createdAt: Date }): Promise<StaffDto> {
-  const today = await staffToday(db, supplierId, { id: u.id, name: u.name });
+type StaffRow = { id: string; name: string; phone: string; active: boolean; createdAt: Date };
+
+/** The owner's view of a member of staff: details plus today's totals (no activity list). */
+async function toStaffDto(db: Db, supplierId: string, u: StaffRow, day?: { start: Date; end: Date }): Promise<StaffDto> {
+  const range = day ?? zonedDayRange((await getBusinessSettings(db, supplierId)).timezone);
+  const today = await staffDayTotals(db, supplierId, u.id, range);
   return {
     id: u.id,
     name: u.name,
@@ -43,8 +48,12 @@ export function registerStaffRoutes(app: FastifyInstance, { db, env }: Services)
 
   app.get('/api/staff', async (req) => {
     const auth = requireSupplier(req);
-    const staff = await db.user.findMany({ where: { supplierId: auth.supplierId, role: 'STAFF' }, orderBy: [{ active: 'desc' }, { name: 'asc' }] });
-    return Promise.all(staff.map((u) => toStaffDto(db, auth.supplierId, u)));
+    const [staff, { timezone }] = await Promise.all([
+      db.user.findMany({ where: { supplierId: auth.supplierId, role: 'STAFF' }, orderBy: [{ active: 'desc' }, { name: 'asc' }] }),
+      getBusinessSettings(db, auth.supplierId),
+    ]);
+    const day = zonedDayRange(timezone);
+    return Promise.all(staff.map((u) => toStaffDto(db, auth.supplierId, u, day)));
   });
 
   /** The owner looks at any member of staff's day. */

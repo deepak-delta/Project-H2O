@@ -56,21 +56,17 @@ export function registerDashboardRoutes(app: FastifyInstance, { db }: AppDeps): 
         db.$queryRaw<{ credit: unknown }[]>`
           SELECT COALESCE(SUM(GREATEST(o.total - COALESCE(p.paid, 0), 0)), 0) AS credit
           FROM "Order" o
-          LEFT JOIN (
-            SELECT "orderId", SUM(amount) AS paid FROM "Payment"
-            WHERE "supplierId" = ${supplierId} AND "reversedAt" IS NULL AND "orderId" IS NOT NULL
-            GROUP BY "orderId"
-          ) p ON p."orderId" = o.id
+          LEFT JOIN LATERAL (
+            SELECT SUM(amount) AS paid FROM "Payment"
+            WHERE "orderId" = o.id AND "reversedAt" IS NULL
+          ) p ON true
           WHERE o."supplierId" = ${supplierId}
             AND o.status IN ('DELIVERED', 'PARTIALLY_DELIVERED')
             AND o."orderDate" >= ${today.start} AND o."orderDate" < ${today.end}`,
         db.$queryRaw<{ outstanding: unknown; stores: bigint }[]>`
           SELECT COALESCE(SUM(balance), 0) AS outstanding, COUNT(*) AS stores
-          FROM (
-            SELECT SUM(amount) AS balance FROM "LedgerEntry"
-            WHERE "supplierId" = ${supplierId} GROUP BY "storeId"
-          ) b
-          WHERE balance > 0`,
+          FROM "ClientTotals"
+          WHERE "supplierId" = ${supplierId} AND balance > 0`,
         db.inventoryMovement.groupBy({
           by: ['type'],
           // Reversals that undo a delivery (cancelled orders) net the counts back out.

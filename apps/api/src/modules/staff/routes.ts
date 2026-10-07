@@ -20,7 +20,7 @@ async function toStaffDto(db: Db, supplierId: string, u: { id: string; name: str
     phone: u.phone,
     active: u.active,
     createdAt: u.createdAt.toISOString(),
-    today: { deliveries: today.deliveries, cansDelivered: today.cansDelivered, collected: today.collected, cashInHand: today.cashInHand },
+    today: { deliveries: today.deliveries, cansDelivered: today.cansDelivered, collected: today.collected, expenses: today.expenses, cashInHand: today.cashInHand },
   };
 }
 

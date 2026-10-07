@@ -56,7 +56,12 @@ export function watchForErrors(page: Page): () => void {
 
 /** No sideways scrolling: the page must fit the phone's width. */
 export async function expectNoHorizontalScroll(page: Page): Promise<void> {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  // The app scrolls inside its own box (data-scroll-root), so check that as well as the page.
+  const overflow = await page.evaluate(() => {
+    const root = document.querySelector<HTMLElement>('[data-scroll-root]');
+    const inner = root ? root.scrollWidth - root.clientWidth : 0;
+    return Math.max(document.documentElement.scrollWidth - window.innerWidth, inner);
+  });
   expect(overflow, `horizontal overflow on ${page.url()}`).toBeLessThanOrEqual(0);
 }
 

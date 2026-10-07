@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react';
-import { Outlet } from 'react-router';
+import { lazy, Suspense, useEffect, useRef } from 'react';
+import { Outlet, useLocation } from 'react-router';
 
 import { useSession } from '../../features/auth/session';
 import { PageSpinner } from '../ui/Spinner';
@@ -21,8 +21,17 @@ export function AppShell({ nav = true }: { nav?: boolean }) {
   const { user } = useSession();
   useSyncEngine(user.id);
   useWarmCache(user.role);
+  const scroller = useRef<HTMLDivElement>(null);
+  const { pathname } = useLocation();
+  // Each screen starts at the top.
+  useEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = 0;
+  }, [pathname]);
   return (
-    <div className={nav ? 'min-h-dvh lg:pl-60' : 'min-h-dvh'}>
+    // The app scrolls inside this box, never the page itself. A scrolling page makes Chrome and
+    // Safari slide their own toolbars in and out (and iOS shifts the page after the keyboard
+    // closes), which drags the bottom bar with them. With the page still, the bar stays put.
+    <div ref={scroller} data-scroll-root className={nav ? 'h-dvh overflow-y-auto overscroll-none lg:pl-60' : 'h-dvh overflow-y-auto overscroll-none'}>
       {/* Bottom padding = nav height + safe area, so the last row is never hidden. */}
       <main
         className={

@@ -16,7 +16,7 @@ import { toast } from '../../stores/toast';
 import { randomPin } from '../../utils/pin';
 import { useAddStaff, useStaffList } from './api';
 
-/** Owner: delivery staff, with how much cash each is holding today. */
+/** Owner: delivery staff, with what each has spent today. */
 export default function StaffPage() {
   const staff = useStaffList();
   const format = useMoney();
@@ -63,8 +63,8 @@ export default function StaffPage() {
                 trailing={
                   s.active ? (
                     <span className="flex flex-col items-end">
-                      <span className="font-semibold text-ink tabular">{format(s.today.cashInHand)}</span>
-                      <span className="text-xs text-muted">cash with them</span>
+                      <span className="font-semibold text-ink tabular">{format(s.today.expenses)}</span>
+                      <span className="text-xs text-muted">staff expense</span>
                     </span>
                   ) : (
                     <Badge>Turned off</Badge>

@@ -78,7 +78,8 @@ test('delivery staff: sees only their day, delivers the order given to them, han
   }
   assertNoErrors();
 
-  // Owner sees the cash Raju holds.
+  // Owner sees what Raju spent today.
   await page.goto('/staff');
-  await expect(page.getByRole('link', { name: /Raju Kumar/ })).toContainText('₹150');
+  await expect(page.getByRole('link', { name: /Raju Kumar/ })).toContainText('₹50');
+  await expect(page.getByRole('link', { name: /Raju Kumar/ })).toContainText('staff expense');
 });

@@ -22,11 +22,19 @@ export function StaffDay({ day, self }: { day: StaffTodayDto; self: boolean }) {
   return (
     <>
       <Card className="flex items-center justify-between gap-3 border-brand-200 bg-brand-50 p-4">
-        <div className="min-w-0">
-          <p className="text-[13px] text-ink-2">{self ? 'Cash to hand over' : `Cash with ${day.staff.name}`}</p>
-          <p className="text-2xl font-semibold text-ink tabular">{format(day.cashInHand)}</p>
-          <p className="text-xs text-muted">Cash taken {format(day.collected.byMethod.CASH)} − cash spent</p>
-        </div>
+        {self ? (
+          <div className="min-w-0">
+            <p className="text-[13px] text-ink-2">Cash to hand over</p>
+            <p className="text-2xl font-semibold text-ink tabular">{format(day.cashInHand)}</p>
+            <p className="text-xs text-muted">Cash taken {format(day.collected.byMethod.CASH)} − cash spent</p>
+          </div>
+        ) : (
+          <div className="min-w-0">
+            <p className="text-[13px] text-ink-2">Staff expense today</p>
+            <p className="text-2xl font-semibold text-ink tabular">{format(day.expenses)}</p>
+            <p className="text-xs text-muted">Cash to hand over {format(day.cashInHand)}</p>
+          </div>
+        )}
       </Card>
 
       <section>

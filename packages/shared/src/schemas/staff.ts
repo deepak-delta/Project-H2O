@@ -31,8 +31,8 @@ export interface StaffDto {
   phone: string;
   active: boolean;
   createdAt: string;
-  /** Today's totals, so the owner sees who holds how much cash. */
-  today: Pick<StaffTodayDto, 'deliveries' | 'cansDelivered' | 'collected' | 'cashInHand'>;
+  /** Today's totals for the owner's list. */
+  today: Pick<StaffTodayDto, 'deliveries' | 'cansDelivered' | 'collected' | 'expenses' | 'cashInHand'>;
 }
 
 export type StaffActivity =

@@ -4,10 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#0b5f73" media="(display-mode: standalone)" />
     <meta name="description" content="Orders, deliveries, cans and credit for water delivery businesses." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!--
+      black-translucent: the app draws under the status bar. With "default", iOS 26 Home Screen
+      apps get a viewport shifted by the status-bar height (WebKit bug 316008): the bottom nav
+      floats up over content and sticky headers slide under the status bar. iOS then shows the
+      clock in white, so .status-bar-strip paints a brand-teal band behind it.
+    -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Water Delivery" />
     <meta name="format-detection" content="telephone=no" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -15,6 +22,7 @@
     <title>Water Delivery</title>
   </head>
   <body>
+    <div class="status-bar-strip" aria-hidden="true"></div>
     <div id="root"></div>
     <noscript>Please enable JavaScript to use Water Delivery.</noscript>
     <script type="module" src="/src/main.tsx"></script>

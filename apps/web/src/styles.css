@@ -71,6 +71,26 @@
   }
 }
 
+/*
+ * Brand band behind the iPhone status bar in the installed app (black-translucent shows a white
+ * clock and battery, so it needs a dark band). Only in standalone mode: a Safari tab keeps its own
+ * light status bar, and theme-color there stays light too.
+ */
+.status-bar-strip {
+  display: none;
+}
+@media (display-mode: standalone) {
+  .status-bar-strip {
+    display: block;
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 60;
+    height: env(safe-area-inset-top);
+    background: var(--color-brand-700);
+    pointer-events: none;
+  }
+}
+
 @utility pt-safe {
   padding-top: env(safe-area-inset-top);
 }

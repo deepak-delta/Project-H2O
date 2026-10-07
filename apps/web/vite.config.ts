@@ -27,7 +27,7 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         background_color: '#f6f7f9',
-        theme_color: '#ffffff',
+        theme_color: '#0b5f73',
         categories: ['business', 'productivity'],
         icons: [
           { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },

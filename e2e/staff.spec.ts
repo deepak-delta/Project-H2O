@@ -71,6 +71,15 @@ test('delivery staff: sees only their day, delivers the order given to them, han
   await expect(phone.getByText('Client app')).toHaveCount(0);
   await expectAccessible(phone);
 
+  // Nowhere to add a client: not on Clients, nor in New delivery when nobody matches.
+  await phone.goto('/stores');
+  await expect(phone.getByRole('heading', { name: 'Clients' })).toBeVisible();
+  await expect(phone.getByRole('link', { name: /^Add/ })).toHaveCount(0);
+  await phone.goto('/orders/new');
+  await phone.getByRole('searchbox').fill('zzz nobody');
+  await expect(phone.getByText('No matching clients')).toBeVisible();
+  await expect(phone.getByRole('link', { name: 'Add client' })).toHaveCount(0);
+
   // Owner-only screens don't exist for staff.
   for (const path of ['/reports', '/inventory', '/cashflow', '/payments', '/stores/new', '/staff', '/products']) {
     await phone.goto(path);

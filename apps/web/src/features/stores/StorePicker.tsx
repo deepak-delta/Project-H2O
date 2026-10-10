@@ -12,6 +12,7 @@ import { errorMessage } from '../../services/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { toMinor, type StoreListItem } from '@wd/shared';
 import { useOnline } from '../../hooks/useOnline';
+import { useSession } from '../auth/session';
 import { cachedStores, useStores, type StoreFilter } from './api';
 import { clientTypeLabel } from './clientType';
 
@@ -72,6 +73,8 @@ export function StoreSearchBox({
 
 /** Store chooser for new orders: most recently served stores first, instant search. */
 export function StorePicker({ onPick }: { onPick: (storeId: string) => void }) {
+  // Only the owner adds clients; staff deliver to the ones the owner has added.
+  const isOwner = useSession().user.role === 'SUPPLIER';
   const [search, setSearch] = useState('');
   const debounced = useDebounce(search.trim());
   const online = useOnline();
@@ -99,11 +102,19 @@ export function StorePicker({ onPick }: { onPick: (storeId: string) => void }) {
         <EmptyState
           icon={<StoreIcon className="size-6" />}
           title={debounced ? 'No matching clients' : offline ? 'No clients saved on this phone' : 'No clients yet'}
-          description={debounced ? 'Try a different name or number.' : 'Add the clients you deliver to.'}
+          description={
+            debounced
+              ? 'Try a different name or number.'
+              : isOwner
+                ? 'Add the clients you deliver to.'
+                : 'The owner adds the clients you deliver to.'
+          }
           action={
-            <Link to="/stores/new" className="inline-flex h-11 items-center rounded-xl bg-brand-700 px-4 font-semibold text-white">
-              Add client
-            </Link>
+            isOwner ? (
+              <Link to="/stores/new" className="inline-flex h-11 items-center rounded-xl bg-brand-700 px-4 font-semibold text-white">
+                Add client
+              </Link>
+            ) : undefined
           }
         />
       ) : (

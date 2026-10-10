@@ -1,6 +1,7 @@
 import {
   fromMinor,
   periodKeys,
+  type BusinessSummary,
   type InventoryReport,
   type OutstandingReport,
   type SalesReport,
@@ -15,6 +16,8 @@ import { resolveRange } from '../../lib/range';
 import { parse } from '../../lib/validate';
 import { Prisma } from '../../generated/prisma/client';
 import { paymentInclude, toPaymentDto } from '../payments/routes';
+import { CANS_DELIVERED, COLLECTED, NET_SALES } from './sql';
+import { businessSummary } from './summary';
 
 const ZERO: StockCounts = { filled: 0, empty: 0, withCustomers: 0, damaged: 0 };
 const PAYMENTS_REPORT_CAP = 5000;
@@ -39,14 +42,14 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
     const [money, cans, deliveries] = await Promise.all([
       db.$queryRaw<{ period: string; sales: unknown; collected: unknown }[]>`
         SELECT ${periodOf(Prisma.sql`"occurredAt"`, groupBy, tz)} AS period,
-               COALESCE(SUM(amount) FILTER (WHERE type IN ('SALE', 'DISCOUNT') OR (type = 'REVERSAL' AND "paymentId" IS NULL)), 0) AS sales,
-               COALESCE(-SUM(amount) FILTER (WHERE type = 'PAYMENT' OR (type = 'REVERSAL' AND "paymentId" IS NOT NULL)), 0) AS collected
+               ${NET_SALES} AS sales,
+               ${COLLECTED} AS collected
         FROM "LedgerEntry"
         WHERE "supplierId" = ${supplierId} AND "occurredAt" >= ${range.start} AND "occurredAt" < ${range.end}
         GROUP BY 1`,
       db.$queryRaw<{ period: string; cans: unknown }[]>`
         SELECT ${periodOf(Prisma.sql`"occurredAt"`, groupBy, tz)} AS period,
-               COALESCE(SUM(-"filledDelta") FILTER (WHERE type = 'DELIVERY' OR (type = 'REVERSAL' AND "deliveryId" IS NOT NULL)), 0) AS cans
+               ${CANS_DELIVERED} AS cans
         FROM "InventoryMovement"
         WHERE "supplierId" = ${supplierId} AND "occurredAt" >= ${range.start} AND "occurredAt" < ${range.end}
         GROUP BY 1`,
@@ -93,6 +96,12 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
         duesChange: fromMinor(totals.sales - totals.collected),
       },
     };
+  });
+
+  /** Everything for one period on one page: sales, money, expenses, cans, staff, clients. */
+  app.get('/api/reports/summary', async (req): Promise<BusinessSummary> => {
+    const { supplierId } = requireSupplier(req);
+    return businessSummary(db, supplierId, await resolveRange(db, supplierId, req.query));
   });
 
   /** Who owes money right now, biggest first, with when they last paid. */

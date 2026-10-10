@@ -98,6 +98,15 @@ export function addDays(key: string, days: number): string {
   return utcToKey(d);
 }
 
+/** Same day `months` later (or earlier), clamped to the month's last day: 31 Mar − 1 month = 28/29 Feb. */
+export function addMonths(key: string, months: number): string {
+  const [y, m, d] = key.split('-').map(Number) as [number, number, number];
+  const first = new Date(Date.UTC(y, m - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  first.setUTCDate(Math.min(d, lastDay));
+  return utcToKey(first);
+}
+
 export function startOfMonth(key: string): string {
   return `${key.slice(0, 7)}-01`;
 }

@@ -137,3 +137,39 @@ export interface InventoryReport {
   to: string;
   products: InventoryReportProduct[];
 }
+
+/**
+ * Everything about the business for one period on one page: sales, money, expenses, cans,
+ * staff and clients. Period figures cover from–to; `now` is the position today.
+ */
+export interface BusinessSummary {
+  from: string;
+  to: string;
+  /** Same definitions as the sales report, so the two always agree. */
+  sales: { deliveries: number; cans: number; sales: string; collected: string; duesChange: string };
+  /** `collected` split by how it was paid (reversed payments net out). */
+  collectedByMethod: { method: PaymentMethod; amount: string }[];
+  cashFlow: CashFlowSummary;
+  cans: {
+    delivered: number;
+    emptiesBack: number;
+    /** Broken cans taken back from clients (charged to them). */
+    damagedFromClients: number;
+    /** Damaged or lost from the warehouse. */
+    damagedOrLostInStock: number;
+    refilled: number;
+  };
+  newClients: number;
+  now: {
+    outstanding: string;
+    clientsOwing: number;
+    cansWithClients: number;
+    stock: { productId: string; productName: string; filled: number; empty: number; withCustomers: number; damaged: number }[];
+  };
+  /** Best clients by sales in the period. */
+  topClients: { storeId: string; storeName: string; sales: string; collected: string }[];
+  /** Who owes the most today. */
+  topOwing: { storeId: string; storeName: string; balance: string }[];
+  /** Owner and staff: what each delivered and collected in the period. */
+  people: { userId: string; name: string; role: 'SUPPLIER' | 'STAFF'; deliveries: number; cans: number; collected: string }[];
+}

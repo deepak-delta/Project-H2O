@@ -14,12 +14,13 @@ import { z } from 'zod';
 import type { AppDeps } from '../../app';
 import { requireOperator, requireSupplier } from '../../lib/auth-context';
 import { audit } from '../../lib/audit';
+import type { Db } from '../../lib/db';
 import { getBusinessSettings } from '../../lib/business';
 import { conflict, forbidden, notFound, validationError } from '../../lib/errors';
 import { idempotent } from '../../lib/idempotency';
 import { decToMinor, decToString, minorToDec } from '../../lib/money';
 import { decodeCursor, olderThan, toPage } from '../../lib/pagination';
-import { resolveRange } from '../../lib/range';
+import { resolveRange, type ResolvedRange } from '../../lib/range';
 import { parse } from '../../lib/validate';
 import type { Prisma } from '../../generated/prisma/client';
 
@@ -44,6 +45,51 @@ function toEntryDto(e: EntryRow): CashEntryDto {
     fromPayment: e.paymentId !== null,
     reversed: e.reversedBy !== null,
     isReversal: e.reversesId !== null,
+  };
+}
+
+/** Money in and out for a period, by category and by payment method (the Cash flow screen). */
+export async function cashFlowSummary(db: Db, supplierId: string, range: ResolvedRange): Promise<CashFlowSummary> {
+  const rows = await db.cashFlowEntry.groupBy({
+    by: ['type', 'category', 'method'],
+    where: { supplierId, date: { gte: range.start, lt: range.end } },
+    _sum: { amount: true },
+  });
+
+  let moneyIn = 0;
+  let moneyOut = 0;
+  const byCategory = new Map<string, { type: (typeof rows)[number]['type']; category: (typeof rows)[number]['category']; amount: number }>();
+  const byMethod = new Map<PaymentMethod, { moneyIn: number; moneyOut: number }>();
+  for (const r of rows) {
+    const amount = decToMinor(r._sum.amount);
+    if (r.type === 'INCOME') moneyIn += amount;
+    else moneyOut += amount;
+    const key = `${r.type}:${r.category}`;
+    const cat = byCategory.get(key) ?? { type: r.type, category: r.category, amount: 0 };
+    cat.amount += amount;
+    byCategory.set(key, cat);
+    const m = byMethod.get(r.method) ?? { moneyIn: 0, moneyOut: 0 };
+    if (r.type === 'INCOME') m.moneyIn += amount;
+    else m.moneyOut += amount;
+    byMethod.set(r.method, m);
+  }
+
+  return {
+    from: range.from,
+    to: range.to,
+    moneyIn: fromMinor(moneyIn),
+    moneyOut: fromMinor(moneyOut),
+    net: fromMinor(moneyIn - moneyOut),
+    byCategory: [...byCategory.values()]
+      .filter((c) => c.amount !== 0)
+      .sort((a, b) => b.amount - a.amount)
+      .map((c) => ({ ...c, amount: fromMinor(c.amount) })),
+    byMethod: [...byMethod.entries()].map(([method, m]) => ({
+      method,
+      moneyIn: fromMinor(m.moneyIn),
+      moneyOut: fromMinor(m.moneyOut),
+      net: fromMinor(m.moneyIn - m.moneyOut),
+    })),
   };
 }
 
@@ -116,48 +162,7 @@ export function registerCashFlowRoutes(app: FastifyInstance, { db }: AppDeps): v
 
   app.get('/api/cashflow/summary', async (req): Promise<CashFlowSummary> => {
     const auth = requireSupplier(req);
-    const range = await resolveRange(db, auth.supplierId, req.query);
-    const rows = await db.cashFlowEntry.groupBy({
-      by: ['type', 'category', 'method'],
-      where: { supplierId: auth.supplierId, date: { gte: range.start, lt: range.end } },
-      _sum: { amount: true },
-    });
-
-    let moneyIn = 0;
-    let moneyOut = 0;
-    const byCategory = new Map<string, { type: (typeof rows)[number]['type']; category: (typeof rows)[number]['category']; amount: number }>();
-    const byMethod = new Map<PaymentMethod, { moneyIn: number; moneyOut: number }>();
-    for (const r of rows) {
-      const amount = decToMinor(r._sum.amount);
-      if (r.type === 'INCOME') moneyIn += amount;
-      else moneyOut += amount;
-      const key = `${r.type}:${r.category}`;
-      const cat = byCategory.get(key) ?? { type: r.type, category: r.category, amount: 0 };
-      cat.amount += amount;
-      byCategory.set(key, cat);
-      const m = byMethod.get(r.method) ?? { moneyIn: 0, moneyOut: 0 };
-      if (r.type === 'INCOME') m.moneyIn += amount;
-      else m.moneyOut += amount;
-      byMethod.set(r.method, m);
-    }
-
-    return {
-      from: range.from,
-      to: range.to,
-      moneyIn: fromMinor(moneyIn),
-      moneyOut: fromMinor(moneyOut),
-      net: fromMinor(moneyIn - moneyOut),
-      byCategory: [...byCategory.values()]
-        .filter((c) => c.amount !== 0)
-        .sort((a, b) => b.amount - a.amount)
-        .map((c) => ({ ...c, amount: fromMinor(c.amount) })),
-      byMethod: [...byMethod.entries()].map(([method, m]) => ({
-        method,
-        moneyIn: fromMinor(m.moneyIn),
-        moneyOut: fromMinor(m.moneyOut),
-        net: fromMinor(m.moneyIn - m.moneyOut),
-      })),
-    };
+    return cashFlowSummary(db, auth.supplierId, await resolveRange(db, auth.supplierId, req.query));
   });
 
   /** Undo an expense/income entered by mistake: an opposite entry is added, nothing deleted. */

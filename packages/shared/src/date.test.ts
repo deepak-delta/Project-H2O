@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, daysBetween, endOfMonth, isDateKey, periodKeys, startOfMonth, zonedDateKey, zonedDayRange, zonedDayRangeForKey } from './date';
+import { addDays, addMonths, daysBetween, endOfMonth, isDateKey, periodKeys, startOfMonth, zonedDateKey, zonedDayRange, zonedDayRangeForKey } from './date';
 
 describe('zonedDayRange', () => {
   it('IST day starts at 18:30 UTC the previous day', () => {
@@ -36,6 +36,15 @@ describe('date keys', () => {
   it('adds days across month and year ends', () => {
     expect(addDays('2026-01-31', 1)).toBe('2026-02-01');
     expect(addDays('2026-12-31', 1)).toBe('2027-01-01');
+  });
+
+  it('adds months, keeping the day where it exists', () => {
+    expect(addMonths('2026-10-11', -1)).toBe('2026-09-11');
+    expect(addMonths('2026-10-11', -12)).toBe('2025-10-11');
+    expect(addMonths('2026-03-31', -1)).toBe('2026-02-28');
+    expect(addMonths('2028-03-31', -1)).toBe('2028-02-29');
+    expect(addMonths('2026-01-15', -3)).toBe('2025-10-15');
+    expect(addMonths('2026-11-30', 3)).toBe('2027-02-28');
     expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
   });
 

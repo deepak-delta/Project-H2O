@@ -22,7 +22,7 @@ export function Segmented<T extends string>({ label, value, onChange, options, s
             aria-checked={active}
             onClick={() => onChange(o.value)}
             className={cn(
-              'rounded-lg px-2 text-[15px] font-medium transition-colors',
+              'min-w-0 truncate rounded-lg px-1 text-[15px] font-medium transition-colors',
               size === 'lg' ? 'h-12' : 'h-10',
               active ? 'bg-surface text-ink shadow-sm ring-1 ring-line-strong' : 'text-ink-2 hover:text-ink',
             )}

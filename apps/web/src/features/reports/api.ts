@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { InventoryReport, OutstandingReport, PaymentDto, SalesReport } from '@wd/shared';
+import type { BusinessSummary, InventoryReport, OutstandingReport, PaymentDto, SalesReport } from '@wd/shared';
 import { api } from '../../services/api';
 import { qk } from '../../services/queryKeys';
 
@@ -7,6 +7,13 @@ export function useSalesReport(from: string, to: string, groupBy: 'day' | 'month
   return useQuery({
     queryKey: [...qk.reports, 'sales', from, to, groupBy],
     queryFn: () => api.get<SalesReport>(`/reports/sales?from=${from}&to=${to}&groupBy=${groupBy}`),
+  });
+}
+
+export function useBusinessSummary(from: string, to: string) {
+  return useQuery({
+    queryKey: [...qk.reports, 'summary', from, to],
+    queryFn: () => api.get<BusinessSummary>(`/reports/summary?from=${from}&to=${to}`),
   });
 }
 

@@ -1,10 +1,10 @@
-import { addDays, endOfMonth, startOfMonth, zonedDateKey } from '@wd/shared';
+import { addDays, addMonths, endOfMonth, startOfMonth, zonedDateKey } from '@wd/shared';
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTimezone } from '../../hooks/useMoney';
 import { FilterChips } from './Segmented';
 
-export type PeriodPreset = 'today' | 'yesterday' | '7d' | 'month' | 'lastMonth';
+export type PeriodPreset = 'today' | 'yesterday' | '7d' | 'month' | 'lastMonth' | '1m' | '3m' | '1y';
 
 export interface Period {
   preset: PeriodPreset;
@@ -19,6 +19,9 @@ const LABELS: Record<PeriodPreset, string> = {
   '7d': 'Last 7 days',
   month: 'This month',
   lastMonth: 'Last month',
+  '1m': 'Last 1 month',
+  '3m': 'Last 3 months',
+  '1y': 'Last 1 year',
 };
 
 export function periodFor(preset: PeriodPreset, today: string): Period {
@@ -33,6 +36,13 @@ export function periodFor(preset: PeriodPreset, today: string): Period {
       return { preset, from: addDays(today, -6), to: today, label: LABELS[preset] };
     case 'month':
       return { preset, from: startOfMonth(today), to: today, label: LABELS[preset] };
+    // Rolling periods ending today: 11 Oct back to 12 Sep is "last 1 month".
+    case '1m':
+    case '3m':
+    case '1y': {
+      const months = preset === '1m' ? 1 : preset === '3m' ? 3 : 12;
+      return { preset, from: addDays(addMonths(today, -months), 1), to: today, label: LABELS[preset] };
+    }
     case 'lastMonth': {
       const last = addDays(startOfMonth(today), -1);
       return { preset, from: startOfMonth(last), to: endOfMonth(last), label: LABELS[preset] };

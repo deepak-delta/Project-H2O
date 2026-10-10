@@ -1,8 +1,9 @@
-import { Boxes, CalendarDays, CalendarRange, HandCoins, Receipt, Store, Wallet, type LucideIcon } from 'lucide-react';
+import { Boxes, CalendarDays, CalendarRange, ClipboardList, HandCoins, Receipt, Store, Wallet, type LucideIcon } from 'lucide-react';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
 import { ListCard, ListRow } from '../../components/ui/Card';
 
 const REPORTS: { to: string; title: string; subtitle: string; icon: LucideIcon }[] = [
+  { to: '/reports/summary', title: 'Business summary', subtitle: 'Everything in one report: 7 days to 1 year', icon: ClipboardList },
   { to: '/reports/sales', title: 'Daily sales', subtitle: 'Sales, collections and cans per day', icon: CalendarDays },
   { to: '/reports/sales?groupBy=month', title: 'Monthly sales', subtitle: 'The last 12 months at a glance', icon: CalendarRange },
   { to: '/reports/outstanding', title: 'Who owes money', subtitle: 'Outstanding credit by client', icon: HandCoins },

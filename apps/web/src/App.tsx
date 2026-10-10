@@ -33,6 +33,7 @@ const StatementPage = lazy(() => import('./features/store-app/StatementPage'));
 const CashFlowPage = lazy(() => import('./features/cashflow/CashFlowPage'));
 const ReportsPage = lazy(() => import('./features/reports/ReportsPage'));
 const SalesReportPage = lazy(() => import('./features/reports/SalesReportPage'));
+const SummaryReportPage = lazy(() => import('./features/reports/SummaryReportPage'));
 const OutstandingReportPage = lazy(() => import('./features/reports/OutstandingReportPage'));
 const InventoryReportPage = lazy(() => import('./features/reports/InventoryReportPage'));
 const PaymentsReportPage = lazy(() => import('./features/reports/PaymentsReportPage'));
@@ -169,6 +170,7 @@ const router = createBrowserRouter([
           { path: 'payments', element: <ByRole supplier={<PaymentsPage />} store={<PaymentsPage />} /> },
           { path: 'cashflow', element: <ByRole supplier={<CashFlowPage />} /> },
           { path: 'reports', element: <ByRole supplier={<ReportsPage />} /> },
+          { path: 'reports/summary', element: <ByRole supplier={<SummaryReportPage />} /> },
           { path: 'reports/sales', element: <ByRole supplier={<SalesReportPage />} /> },
           { path: 'reports/outstanding', element: <ByRole supplier={<OutstandingReportPage />} /> },
           { path: 'reports/inventory', element: <ByRole supplier={<InventoryReportPage />} /> },

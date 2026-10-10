@@ -1,6 +1,6 @@
 import { addDays, toMinor, zonedDateKey } from '@wd/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { closeTestContext, createTestContext, resetDb, type TestContext, rewriteHistoryForTest } from './helpers';
+import { Client, closeTestContext, createTestContext, resetDb, type TestContext, rewriteHistoryForTest } from './helpers';
 import { createStore, sale, setupBusiness, stockOf, storeUserClient, type Business } from './fixtures';
 
 let ctx: TestContext;
@@ -207,8 +207,72 @@ describe('other reports', () => {
       '/api/reports/outstanding',
       `/api/reports/inventory?from=${today()}&to=${today()}`,
       `/api/cashflow/summary?from=${today()}&to=${today()}`,
+      `/api/reports/summary?from=${today()}&to=${today()}`,
     ]) {
       expect((await store.get(url)).statusCode).toBe(403);
     }
+  });
+});
+
+describe('business summary', () => {
+  it('puts sales, money, expenses, cans, clients and staff for a period on one page', async () => {
+    const martId = await createStore(biz.client, { name: 'Mart', phone: '9811100077' });
+    await biz.client.post('/api/staff', { name: 'Raju', phone: '9600000011', pin: '246810' });
+    const raju = new Client(ctx.app);
+    expect((await raju.post('/api/auth/login', { phone: '9600000011', pin: '246810' })).statusCode).toBe(200);
+
+    // Owner: 10 cans to Sri Ganesh (₹50), ₹200 cash, 4 empties back.
+    await biz.client.post('/api/orders/quick-sale', sale(biz.storeId, [{ productId: biz.canId, quantity: 10, emptyCollected: 4 }], { amount: '200' }));
+    // Raju: 6 cans to Mart, ₹300 UPI, 1 broken can back at ₹120; later ₹100 cash from Sri Ganesh.
+    await raju.post(
+      '/api/orders/quick-sale',
+      sale(martId, [{ productId: biz.canId, quantity: 6, damagedCollected: 1, damageChargeEach: '120' }], { amount: '300', method: 'UPI' }),
+    );
+    await raju.post('/api/payments', { clientId: crypto.randomUUID(), storeId: biz.storeId, amount: '100', method: 'CASH' });
+    await entry({ type: 'EXPENSE', category: 'FUEL', amount: '80' });
+    const move = (body: Record<string, unknown>) => biz.client.post('/api/inventory/movements', { clientId: crypto.randomUUID(), productId: biz.canId, ...body });
+    await move({ kind: 'DAMAGE', from: 'EMPTY', quantity: 2 });
+    await move({ kind: 'REFILL', quantity: 5 });
+    // Six weeks ago: 3 cans to Sri Ganesh on credit. Outside the last 7 days, inside 3 months.
+    const old = await quickSale(biz.storeId, 3, '0');
+    await backdate(old, new Date(Date.now() - 42 * 86_400_000));
+
+    const week = (await biz.client.get(`/api/reports/summary?from=${addDays(today(), -6)}&to=${today()}`)).json();
+    expect(week.sales).toEqual({ deliveries: 2, cans: 16, sales: '920.00', collected: '600.00', duesChange: '320.00' });
+    expect(week.collectedByMethod).toEqual([
+      { method: 'CASH', amount: '300.00' },
+      { method: 'UPI', amount: '300.00' },
+    ]);
+    expect(week.cans).toEqual({ delivered: 16, emptiesBack: 4, damagedFromClients: 1, damagedOrLostInStock: 2, refilled: 5 });
+    expect(week.cashFlow).toMatchObject({ moneyOut: '80.00' });
+    expect(week.newClients).toBe(2);
+    // Today's position: Sri Ganesh 500 − 200 − 100 + 150 old = 350; Mart 420 − 300 = 120.
+    expect(week.now).toMatchObject({ outstanding: '470.00', clientsOwing: 2, cansWithClients: 10 - 4 + 3 + 6 - 1 });
+    expect(week.now.stock[0]).toMatchObject({ filled: 100 - 10 - 6 - 3 + 5, empty: 20 + 4 - 2 - 5, damaged: 2 + 1 });
+    expect(week.topClients.map((c: { storeName: string; sales: string }) => [c.storeName, c.sales])).toEqual([
+      ['Sri Ganesh Stores', '500.00'],
+      ['Mart', '420.00'],
+    ]);
+    expect(week.topOwing.map((c: { storeName: string; balance: string }) => [c.storeName, c.balance])).toEqual([
+      ['Sri Ganesh Stores', '350.00'],
+      ['Mart', '120.00'],
+    ]);
+    expect(week.people.map((p: { role: string; deliveries: number; cans: number; collected: string }) => [p.role, p.deliveries, p.cans, p.collected])).toEqual([
+      ['STAFF', 1, 6, '400.00'],
+      ['SUPPLIER', 1, 10, '200.00'],
+    ]);
+
+    // Same definitions as the sales report.
+    const sales = (await biz.client.get(`/api/reports/sales?from=${addDays(today(), -6)}&to=${today()}`)).json();
+    expect(sales.totals).toMatchObject({ deliveries: week.sales.deliveries, cans: week.sales.cans, sales: week.sales.sales, collected: week.sales.collected });
+
+    // Three months includes the old credit sale.
+    const quarter = (await biz.client.get(`/api/reports/summary?from=${addDays(today(), -90)}&to=${today()}`)).json();
+    expect(quarter.sales).toEqual({ deliveries: 3, cans: 19, sales: '1070.00', collected: '600.00', duesChange: '470.00' });
+
+    // A year is allowed; more than a year is not. Staff can't see it.
+    expect((await biz.client.get(`/api/reports/summary?from=${addDays(today(), -365)}&to=${today()}`)).statusCode).toBe(200);
+    expect((await biz.client.get(`/api/reports/summary?from=${addDays(today(), -400)}&to=${today()}`)).statusCode).toBe(400);
+    expect((await raju.get(`/api/reports/summary?from=${today()}&to=${today()}`)).statusCode).toBe(403);
   });
 });

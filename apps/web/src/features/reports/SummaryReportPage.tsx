@@ -124,10 +124,13 @@ function Summary({ data, format }: { data: BusinessSummary; format: (amount: str
 
       <section>
         <SectionTitle>Cash flow</SectionTitle>
-        <Card className="grid grid-cols-3 gap-2 p-2">
+        {/* Two columns: lakh-sized amounts don't fit three across on a phone. */}
+        <Card className="grid grid-cols-2 gap-2 p-2">
           <Stat label="Money in" value={format(cashFlow.moneyIn)} />
           <Stat label="Money out" value={format(cashFlow.moneyOut)} />
-          <Stat label="Net" value={format(cashFlow.net)} tone={cashFlow.net.startsWith('-') ? 'bad' : 'default'} />
+          <div className="col-span-2">
+            <Stat label="Net" value={format(cashFlow.net)} tone={cashFlow.net.startsWith('-') ? 'bad' : 'default'} hint="Money in − money out" />
+          </div>
         </Card>
       </section>
       {expenses.length > 0 ? (

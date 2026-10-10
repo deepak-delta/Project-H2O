@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Water Delivery – User guide</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm; }
+  :root { --ink: #111827; --muted: #5b6474; --line: #e5e7eb; --brand: #0f5c6b; --brand-soft: #e7f2f4; --warn: #9a5b00; --warn-soft: #fff6e5; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; color: var(--ink); font: 10.5pt/1.5 -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; }
+  h1, h2, h3 { line-height: 1.2; margin: 0; }
+  h2 { font-size: 20pt; color: var(--brand); margin: 0 0 3mm; break-after: avoid; }
+  h3 { font-size: 13pt; margin: 6mm 0 2mm; break-after: avoid; }
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin: 0 0 1.2mm; }
+  strong { font-weight: 650; }
+  .part { break-before: page; }
+  .lead { font-size: 11.5pt; color: var(--muted); margin-bottom: 5mm; }
+  .ui { font-weight: 650; color: var(--brand); white-space: nowrap; }
+
+  /* Cover */
+  .cover { height: 255mm; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 3mm; font-weight: 700; font-size: 13pt; }
+  .logo { width: 11mm; height: 11mm; border-radius: 3mm; background: var(--brand); color: #fff; display: grid; place-items: center; font-size: 15pt; }
+  .cover h1 { font-size: 34pt; margin: 22mm 0 4mm; letter-spacing: -0.5pt; }
+  .cover .sub { font-size: 14pt; color: var(--muted); max-width: 140mm; }
+  .cover .hero { margin-top: auto; display: flex; gap: 6mm; justify-content: center; }
+  .cover .hero figure { width: 52mm; }
+  .cover .meta { margin-top: 8mm; color: var(--muted); font-size: 9.5pt; display: flex; justify-content: space-between; }
+
+  /* Contents */
+  .toc ol { list-style: none; padding: 0; columns: 2; column-gap: 10mm; }
+  .toc li { break-inside: avoid; margin-bottom: 2.5mm; }
+  .toc a { color: var(--ink); text-decoration: none; }
+  .toc .n { color: var(--brand); font-weight: 700; display: inline-block; width: 8mm; }
+  .toc ul { list-style: none; padding-left: 8mm; margin-top: 1mm; color: var(--muted); font-size: 9.5pt; }
+  .toc ul li { margin-bottom: 0.6mm; }
+
+  /* Feature blocks: text beside a phone, or text above a row of phones */
+  .feature { display: grid; grid-template-columns: 1fr 50mm; gap: 7mm; align-items: start; break-inside: avoid; margin: 0 0 6mm; }
+  .feature.wide { grid-template-columns: 1fr; }
+  .row { display: flex; gap: 6mm; justify-content: flex-start; break-inside: avoid; margin: 1mm 0 6mm; }
+  .row figure { width: 50mm; }
+  figure { margin: 0; break-inside: avoid; }
+  figure img { display: block; width: 100%; border-radius: 4.5mm; border: 0.35mm solid #cfd5dd; box-shadow: 0 0.6mm 2mm rgba(17,24,39,.12); }
+  figcaption { font-size: 8.5pt; color: var(--muted); text-align: center; margin-top: 1.6mm; line-height: 1.35; }
+
+  .steps { counter-reset: step; list-style: none; padding: 0; }
+  .steps > li { counter-increment: step; position: relative; padding-left: 8mm; margin-bottom: 2mm; }
+  .steps > li::before { content: counter(step); position: absolute; left: 0; top: 0.2mm; width: 5.2mm; height: 5.2mm; border-radius: 50%; background: var(--brand); color: #fff; font-size: 8.5pt; font-weight: 700; display: grid; place-items: center; }
+  .tip, .note { border-radius: 2.5mm; padding: 2.8mm 3.5mm; margin: 2mm 0 4mm; break-inside: avoid; }
+  .tip { background: var(--brand-soft); }
+  .tip::before { content: "Tip  "; font-weight: 700; color: var(--brand); }
+  .note { background: var(--warn-soft); }
+  .note::before { content: "Good to know  "; font-weight: 700; color: var(--warn); }
+  table.kv { width: 100%; border-collapse: collapse; margin: 1mm 0 4mm; font-size: 10pt; break-inside: avoid; }
+  table.kv td { border-bottom: 0.25mm solid var(--line); padding: 1.6mm 2mm 1.6mm 0; vertical-align: top; }
+  table.kv td:first-child { font-weight: 650; width: 38mm; }
+  .roles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; margin: 3mm 0 5mm; }
+  .role { border: 0.3mm solid var(--line); border-radius: 3mm; padding: 3.5mm; break-inside: avoid; }
+  .role h4 { margin: 0 0 1.5mm; font-size: 11pt; color: var(--brand); }
+  .role p { font-size: 9.5pt; margin: 0; color: var(--muted); }
+  .formula { font-weight: 650; background: #f3f4f6; border-radius: 2mm; padding: 2.5mm 3.5mm; margin: 2mm 0 3mm; display: block; }
+</style>
+</head>
+<body>
+
+<!-- ───────────────────────────── Cover ───────────────────────────── -->
+<section class="cover">
+  <div class="brand"><span class="logo">💧</span> Water Delivery</div>
+  <h1>User guide</h1>
+  <p class="sub">How to run your water-can delivery business from your phone: deliveries, empty cans, credit, payments, stock, staff and reports.</p>
+  <div class="hero">
+    <figure><img src="screenshots/owner-home.jpg" alt=""><figcaption>Owner</figcaption></figure>
+    <figure><img src="screenshots/staff-home.jpg" alt=""><figcaption>Delivery staff</figcaption></figure>
+    <figure><img src="screenshots/client-home.jpg" alt=""><figcaption>Client</figcaption></figure>
+  </div>
+  <div class="meta"><span>For owners, delivery staff and clients</span><span>Edition: {{DATE}}</span></div>
+</section>
+
+<!-- ───────────────────────────── Contents ───────────────────────────── -->
+<section class="part toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#welcome"><span class="n">1</span>Welcome</a>
+      <ul><li>Who uses the app</li><li>Three ideas to know</li></ul></li>
+    <li><a href="#start"><span class="n">2</span>Getting started</a>
+      <ul><li>Install on your phone</li><li>Create your business</li><li>Log in, Face ID / fingerprint</li><li>First-day checklist</li></ul></li>
+    <li><a href="#home"><span class="n">3</span>Home screen</a></li>
+    <li><a href="#deliver"><span class="n">4</span>Recording a delivery</a>
+      <ul><li>Cans, empties, damaged cans</li><li>Payment and credit</li><li>Receipt on WhatsApp</li></ul></li>
+    <li><a href="#orders"><span class="n">5</span>Orders</a>
+      <ul><li>Orders for later</li><li>Giving orders to staff</li><li>Cancelling</li></ul></li>
+    <li><a href="#clients"><span class="n">6</span>Clients</a>
+      <ul><li>Adding a client and their prices</li><li>The client page (their ledger)</li><li>Payments, empties, can corrections</li><li>Client app access</li></ul></li>
+    <li><a href="#stock"><span class="n">7</span>Stock</a></li>
+    <li><a href="#money"><span class="n">8</span>Payments, cash flow and expenses</a></li>
+    <li><a href="#reports"><span class="n">9</span>Reports</a>
+      <ul><li>Business summary (PDF / CSV)</li><li>Sales, dues, stock, payments</li></ul></li>
+    <li><a href="#staff"><span class="n">10</span>Delivery staff (owner)</a></li>
+    <li><a href="#settings"><span class="n">11</span>Products and settings</a></li>
+    <li><a href="#staffguide"><span class="n">12</span>Guide for delivery staff</a></li>
+    <li><a href="#clientguide"><span class="n">13</span>Guide for clients</a></li>
+    <li><a href="#offline"><span class="n">14</span>Working without internet</a></li>
+    <li><a href="#faq"><span class="n">15</span>Questions and answers</a></li>
+  </ol>
+</section>
+
+<!-- ───────────────────────────── 1 Welcome ───────────────────────────── -->
+<section class="part" id="welcome">
+  <h2>1 · Welcome</h2>
+  <p class="lead">Water Delivery is a digital notebook and ledger for water-can businesses. It records every delivery, every empty can that comes back, every rupee given on credit and every payment, so you always know who owes you money and who has your cans.</p>
+
+  <h3>Who uses the app</h3>
+  <div class="roles">
+    <div class="role"><h4>Owner</h4><p>Runs the business. Sees everything: all clients, money, stock, staff and reports. Adds clients, staff and products.</p></div>
+    <div class="role"><h4>Delivery staff</h4><p>Records deliveries, payments, empty cans and expenses. Sees only their own work for today and the orders given to them.</p></div>
+    <div class="role"><h4>Client</h4><p>A shop, home or office you supply. Optional: can order water, see their balance, cans and payments in their own app.</p></div>
+  </div>
+
+  <h3>Three ideas to know</h3>
+  <table class="kv">
+    <tr><td>Balance</td><td>What a client owes you. Shown in red as <strong>Owes ₹…</strong>. If they paid in advance it shows in green as <strong>Advance ₹…</strong>. Every sale adds to it; every payment reduces it.</td></tr>
+    <tr><td>Cans with a client</td><td>Your reusable cans sitting at the client.<span class="formula">Cans with client = cans they already had + full cans delivered − empty cans collected − damaged cans taken back</span></td></tr>
+    <tr><td>Nothing is erased</td><td>Every entry is kept with who made it and when. A mistake is fixed with a reversal or a correction that shows in the history, so the books always add up.</td></tr>
+  </table>
+  <p>The app works like a normal phone app once installed, works with weak or no internet (see section 14), and keeps your data safe on the server with a backup every night.</p>
+</section>
+
+<!-- ───────────────────────────── 2 Getting started ───────────────────────────── -->
+<section class="part" id="start">
+  <h2>2 · Getting started</h2>
+
+  <div class="feature">
+    <div>
+      <h3>Install the app on your phone</h3>
+      <p>Open the app's link in your phone's browser. The app offers to install itself the first time.</p>
+      <p><strong>iPhone (Safari):</strong></p>
+      <ol class="steps">
+        <li>Tap the <span class="ui">Share</span> button in Safari's toolbar.</li>
+        <li>Scroll down and choose <span class="ui">Add to Home Screen</span>.</li>
+        <li>Open <strong>Water</strong> from your Home Screen.</li>
+      </ol>
+      <p><strong>Android (Chrome):</strong> tap <span class="ui">Install</span> when the app asks, or open Chrome's menu ⋮ and choose <span class="ui">Install app</span> / <span class="ui">Add to Home screen</span>.</p>
+      <div class="tip">If you opened the link inside WhatsApp, the app asks you to open it in Safari or Chrome first. Installing works only from the real browser.</div>
+    </div>
+    <figure><img src="screenshots/start-install-iphone.jpg" alt=""><figcaption>Install steps on iPhone</figcaption></figure>
+  </div>
+
+  <div class="feature">
+    <div>
+      <h3>Create your business (owner)</h3>
+      <ol class="steps">
+        <li>On the login screen tap <span class="ui">Create an account</span>.</li>
+        <li>Enter your <strong>business name</strong>, <strong>your name</strong> and <strong>phone number</strong>, then tap <span class="ui">Continue</span>.</li>
+        <li>Choose a <strong>6-digit PIN</strong>. You will log in with your phone number and this PIN.</li>
+      </ol>
+      <p>Staff and clients do not sign up. You create their logins for them (sections 10 and 6).</p>
+    </div>
+    <figure><img src="screenshots/start-signup.jpg" alt=""><figcaption>Set up your business</figcaption></figure>
+  </div>
+
+  <div class="feature">
+    <div>
+      <h3>Log in</h3>
+      <p>Enter your phone number and 6-digit PIN, then tap <span class="ui">Log in</span>.</p>
+      <p>After your first login the app offers <strong>Face ID / fingerprint</strong>. Turn it on and next time you unlock with your face or finger instead of typing the PIN. You can turn it on later in <span class="ui">More → Login &amp; security</span>.</p>
+      <div class="note">After 5 wrong PINs the account locks for 15 minutes (longer if it keeps happening), so nobody can guess a PIN. The owner can set a new PIN for staff and clients.</div>
+      <h3>First-day checklist</h3>
+      <ol class="steps">
+        <li><strong>Products:</strong> add what you sell, e.g. 20L can, bottle crate (section 11).</li>
+        <li><strong>Stock:</strong> enter how many filled and empty cans you have (section 7, <span class="ui">Add stock</span>).</li>
+        <li><strong>Clients:</strong> add each client with their price, and the cans and money they already have from your old notebook (section 6).</li>
+        <li><strong>Staff:</strong> add your delivery people (section 10).</li>
+      </ol>
+    </div>
+    <figure><img src="screenshots/start-login.jpg" alt=""><figcaption>Log in with phone and PIN</figcaption></figure>
+  </div>
+</section>
+
+<!-- ───────────────────────────── 3 Home ───────────────────────────── -->
+<section class="part" id="home">
+  <h2>3 · Home screen (owner)</h2>
+  <div class="feature">
+    <div>
+      <p class="lead">Your business today, at a glance. It updates by itself within seconds when staff record something, so you don't need to refresh.</p>
+      <table class="kv">
+        <tr><td>Today</td><td>Orders, orders still pending, today's sales, and cans delivered (with empties collected).</td></tr>
+        <tr><td>Money</td><td>Cash/UPI collected today, credit given today, expenses today, net cash today, and the total outstanding with all clients.</td></tr>
+        <tr><td>Cans</td><td>Filled and empty cans in your stock, and cans out with clients.</td></tr>
+      </table>
+      <p>Tap a number to open the matching list. A yellow warning appears if deliveries took your filled stock below zero: count your cans and correct the stock (section 7).</p>
+      <p><strong>Bottom bar:</strong> <span class="ui">Home</span>, <span class="ui">Orders</span>, the big <span class="ui">+</span> for a new delivery, <span class="ui">Clients</span>, and <span class="ui">More</span> (stock, staff, reports, payments, cash flow, products, settings).</p>
+    </div>
+    <figure><img src="screenshots/owner-home.jpg" alt=""><figcaption>Owner home</figcaption></figure>
+  </div>
+</section>
+
+<!-- ───────────────────────────── 4 Delivery ───────────────────────────── -->
+<section class="part" id="deliver">
+  <h2>4 · Recording a delivery</h2>
+  <p class="lead">The most common job: cans go to a client, empties come back, money is paid now or later. One screen, a few taps.</p>
+  <ol class="steps">
+    <li>Tap the big <span class="ui">+</span> in the bottom bar.</li>
+    <li><strong>Choose the client.</strong> Clients you served recently are at the top. Search by name, owner, phone number or type. Results update with every letter.</li>
+    <li><strong>Cans delivered:</strong> use − and + or type the number for each product. The price shown is <em>this client's</em> price. If a client has no price yet for a product, the app asks for it once and remembers it.</li>
+    <li><strong>Empty cans collected:</strong> how many empties came back. <span class="ui">Same as delivered</span> fills it in one tap. The app shows how many cans the client has, and warns if you enter more than that.</li>
+    <li><strong>Damaged cans</strong> (only when it happens): tap <span class="ui">Some cans came back damaged</span>, enter how many and the <strong>charge per damaged can</strong>. The client pays this; the cans leave their count and go to your Damaged stock.</li>
+    <li><strong>Payment:</strong> <span class="ui">Paid full</span>, <span class="ui">Part paid</span> (type the amount) or <span class="ui">Credit</span>, and how they paid: Cash, UPI, Bank or Other.</li>
+    <li>Check the summary and tap <span class="ui">Confirm delivery</span>.</li>
+  </ol>
+  <div class="row">
+    <figure><img src="screenshots/owner-new-pick-client.jpg" alt=""><figcaption>1 · Choose the client</figcaption></figure>
+    <figure><img src="screenshots/owner-new-quantities.jpg" alt=""><figcaption>2 · Cans delivered and empties</figcaption></figure>
+    <figure><img src="screenshots/owner-new-empties-damaged.jpg" alt=""><figcaption>3 · Damaged cans and their charge</figcaption></figure>
+  </div>
+  <div class="feature">
+    <div>
+      <h3>Payment and credit</h3>
+      <p>The summary at the bottom shows the <strong>total</strong>, what was <strong>received now</strong>, what is <strong>added to credit</strong>, and the client's <strong>balance after</strong> this delivery.</p>
+      <ul>
+        <li>Paying <strong>more than the bill</strong> clears older dues automatically.</li>
+        <li>If this delivery takes the client over their <strong>credit limit</strong>, you see a warning (you can still save it).</li>
+        <li>Damaged-can charges appear as <em>"Includes 2 damaged cans"</em> in the total.</li>
+      </ul>
+      <h3>After saving</h3>
+      <p>You see the order number, totals and the client's new balance. Tap <span class="ui">Send receipt on WhatsApp</span> to send the client a ready-made message with what was delivered, paid and still due. <span class="ui">New order</span> starts the next delivery.</p>
+      <div class="tip">No internet? Confirm anyway. The delivery is saved on the phone and sent when the connection returns (section 14).</div>
+    </div>
+    <div>
+      <figure><img src="screenshots/owner-new-done.jpg" alt=""><figcaption>Saved, with WhatsApp receipt</figcaption></figure>
+    </div>
+  </div>
+  <div class="row">
+    <figure><img src="screenshots/owner-new-payment.jpg" alt=""><figcaption>Part paid, with the summary</figcaption></figure>
+  </div>
+</section>
+
+<!-- ───────────────────────────── 5 Orders ───────────────────────────── -->
+<section class="part" id="orders">
+  <h2>5 · Orders</h2>
+  <div class="feature">
+    <div>
+      <h3>Orders for later, and giving them to staff</h3>
+      <p>When a client asks for water to be delivered later (or you want a staff member to do it):</p>
+      <ol class="steps">
+        <li>Tap <span class="ui">+</span> and choose the client.</li>
+        <li>Switch from <span class="ui">Deliver now</span> to <span class="ui">For later</span>.</li>
+        <li>Enter how many, choose <span class="ui">Today</span> or <span class="ui">Tomorrow</span>, and under <strong>Who delivers?</strong> pick yourself or a member of staff.</li>
+        <li>Add a note if needed (e.g. "back gate before 10am") and tap <span class="ui">Create order</span>.</li>
+      </ol>
+      <p>The staff member sees the order on their Today screen and gets a notification if they turned notifications on. The bill is made only when the order is delivered, for what was actually delivered.</p>
+    </div>
+    <figure><img src="screenshots/owner-new-for-later.jpg" alt=""><figcaption>Order for later, with who delivers</figcaption></figure>
+  </div>
+  <div class="feature">
+    <div>
+      <h3>The Orders screen</h3>
+      <p>Tabs: <span class="ui">Today</span>, <span class="ui">Pending</span> (not delivered yet) and <span class="ui">All</span>. Search by client name or order number. Each order shows the amount and its status:</p>
+      <table class="kv">
+        <tr><td>Pending</td><td>Placed by a client in their app; waiting for you.</td></tr>
+        <tr><td>Confirmed</td><td>Accepted, to be delivered.</td></tr>
+        <tr><td>Out for delivery</td><td>On the way.</td></tr>
+        <tr><td>Paid / Part paid / On credit</td><td>Delivered, and how much of it has been paid.</td></tr>
+        <tr><td>Cancelled</td><td>Not delivered, or a delivery that was undone.</td></tr>
+      </table>
+    </div>
+    <figure><img src="screenshots/owner-orders.jpg" alt=""><figcaption>Orders: Today, Pending, All</figcaption></figure>
+  </div>
+  <div class="feature">
+    <div>
+      <h3>An order's page</h3>
+      <ul>
+        <li><strong>Delivered by:</strong> change which staff member delivers it.</li>
+        <li><span class="ui">Out for delivery</span> marks it as on the way; <span class="ui">Deliver</span> opens the delivery screen with the ordered quantities filled in. You can deliver part of an order; the rest stays open.</li>
+        <li>Payments taken for the order are listed; a payment entered by mistake can be <span class="ui">Reverse</span>d here.</li>
+        <li><span class="ui">Cancel order</span> for an order not yet delivered. For a delivered order the button is <span class="ui">Cancel delivery</span>: the sale is taken off the client's balance and the cans go back to stock. Money that was really received stays on the client's account and counts against their dues.</li>
+      </ul>
+      <div class="note">Cancelling asks for confirmation and a reason, and is kept in the history.</div>
+    </div>
+    <figure><img src="screenshots/owner-order-detail.jpg" alt=""><figcaption>Order given to Raju</figcaption></figure>
+  </div>
+</section>
+
+<!-- ───────────────────────────── 6 Clients ───────────────────────────── -->
+<section class="part" id="clients">
+  <h2>6 · Clients</h2>
+  <div class="feature">
+    <div>
+      <p class="lead">Every shop, hotel, home, office or person you deliver to.</p>
+      <p>The list shows each client's type, phone, cans with them, and their balance (<strong style="color:#b42318">Owes</strong> or <strong style="color:#067647">Advance</strong>).</p>
+      <ul>
+        <li><strong>Search</strong> by client name, owner name, phone number or type. Results update as you type each letter.</li>
+        <li><strong>Filters:</strong> <span class="ui">All</span>, <span class="ui">Owes money</span>, <span class="ui">Has cans</span>, <span class="ui">Inactive</span>.</li>
+        <li>Tap a client to open their page.</li>
+      </ul>
+    </div>
+    <figure><img src="screenshots/owner-clients.jpg" alt=""><figcaption>Clients</figcaption></figure>
+  </div>
+
+  <h3>Adding a client</h3>
+  <p>Tap <span class="ui">+ Add</span> on the Clients screen.</p>
+  <ol class="steps">
+    <li><strong>Client name</strong> and <strong>type</strong>: Store, Home, Individual, or Other (type your own word, e.g. Hospital, Apartment).</li>
+    <li><strong>Price for this client:</strong> what they pay for each product. Every client can have their own price; the last client's prices are filled in to save typing.</li>
+    <li>Optional: owner name, phone (for calls and WhatsApp), address, <strong>credit limit</strong> (you're warned when a delivery takes them over it), notes.</li>
+    <li><strong>Cans already at this client:</strong> cans they have from before you started using the app. Leave 0 for a new client.</li>
+    <li><strong>Already supplying this client?</strong> Add the amount they already owe from your old notebook.</li>
+    <li>Tap <span class="ui">Add client</span>.</li>
+  </ol>
+  <div class="row">
+    <figure><img src="screenshots/owner-client-add.jpg" alt=""><figcaption>Name, type and prices</figcaption></figure>
+    <figure><img src="screenshots/owner-client-add-more.jpg" alt=""><figcaption>Credit limit, cans already there</figcaption></figure>
+    <figure><img src="screenshots/owner-clients-owe.jpg" alt=""><figcaption>Filter: Owes money</figcaption></figure>
+  </div>
+  <p>Only the owner can add or edit clients. To change a client's details or prices, open the client and tap the pencil ✎. New prices apply to future orders; past orders keep the price they were made at.</p>
+
+  <h3>The client page: their ledger</h3>
+  <div class="feature">
+    <div>
+      <p>At the top: <strong>Balance</strong>, <strong>Cans with client</strong> and the last delivery date. Below that:</p>
+      <table class="kv">
+        <tr><td>Order</td><td>Start a delivery for this client.</td></tr>
+        <tr><td>Payment</td><td>Record money received against their balance.</td></tr>
+        <tr><td>Empties</td><td>Record empty cans collected without a delivery.</td></tr>
+        <tr><td>Call</td><td>Phone the client.</td></tr>
+        <tr><td>Send payment reminder</td><td>Sends a reminder to the client's app (only if they have app access and owe money).</td></tr>
+      </table>
+      <p><span class="ui">Money</span> history lists every sale, payment and discount with the running balance after each one, like a notebook page. <span class="ui">Cans</span> history lists every delivery, empty return, damaged can and correction. Tap a line to open its order.</p>
+    </div>
+    <figure><img src="screenshots/owner-client-page.jpg" alt=""><figcaption>Client page with money history</figcaption></figure>
+  </div>
+
+  <h3>Payments, empty cans and can corrections</h3>
+  <div class="row">
+    <figure><img src="screenshots/owner-client-record-payment.jpg" alt=""><figcaption>Record payment</figcaption></figure>
+    <figure><img src="screenshots/owner-client-collect-empties.jpg" alt=""><figcaption>Collect empty cans</figcaption></figure>
+    <figure><img src="screenshots/owner-client-correct-cans.jpg" alt=""><figcaption>Correct cans at client</figcaption></figure>
+  </div>
+  <ul>
+    <li><strong>Record payment:</strong> type the amount (or tap <span class="ui">Full balance</span>), choose Cash, UPI, Bank or Other, and <span class="ui">Save payment</span>.</li>
+    <li><strong>Collect empty cans:</strong> for each product, how many empties you picked up, then <span class="ui">Save</span>.</li>
+    <li><strong>Correct</strong> (next to Cans with client, owner only): if you count the cans at the client and the real number is different (for example cans they had before you started), enter the real count, <span class="ui">Review change</span>, and confirm. The change is recorded as a correction with the old and new numbers.</li>
+  </ul>
+
+  <div class="feature">
+    <div>
+      <h3>Client app access</h3>
+      <p>A client can have their own login to order water and see their balance, cans and payments (section 13). At the bottom of the client's page, under <strong>Client app</strong>:</p>
+      <ul>
+        <li>Turn it on with the client's phone number and a 6-digit PIN, and share the PIN with them.</li>
+        <li><span class="ui">Reset PIN</span> if they forget it; <span class="ui">Turn off</span> to remove their access.</li>
+      </ul>
+      <p><span class="ui">Deactivate client</span> hides a client you no longer supply. Their history is kept, and you can reactivate them from the <span class="ui">Inactive</span> filter.</p>
+    </div>
+    <figure><img src="screenshots/owner-client-app-access.jpg" alt=""><figcaption>Client app: on</figcaption></figure>
+  </div>
+</section>
+
+<!-- ───────────────────────────── 7 Stock ───────────────────────────── -->
+<section class="part" id="stock">
+  <h2>7 · Stock</h2>
+  <div class="feature">
+    <div>
+      <p class="lead">Open <span class="ui">More → Inventory</span>. For each product you see where every can is.</p>
+      <table class="kv">
+        <tr><td>Filled</td><td>Full cans ready to deliver.</td></tr>
+        <tr><td>Empty</td><td>Empty cans in your store, waiting to be refilled.</td></tr>
+        <tr><td>With clients</td><td>Your cans at clients' places. Tap to see who has them.</td></tr>
+        <tr><td>Damaged</td><td>Broken cans kept aside.</td></tr>
+      </table>
+      <p>Deliveries and returns update stock automatically. Use the buttons only for things that happen in your store:</p>
+      <ul>
+        <li><span class="ui">Add stock</span>: new cans bought or received (filled and/or empty).</li>
+        <li><span class="ui">Refill</span>: empty cans filled at the plant (empty → filled).</li>
+        <li><span class="ui">Damaged / lost</span>: cans broken or missing, taken from your empty or filled cans.</li>
+        <li><span class="ui">Correct count</span>: after a physical count, enter the real numbers. The difference is recorded as an adjustment.</li>
+      </ul>
+    </div>
+    <figure><img src="screenshots/owner-inventory.jpg" alt=""><figcaption>Inventory</figcaption></figure>
+  </div>
+  <div class="row">
+    <figure><img src="screenshots/owner-inventory-add-stock.jpg" alt=""><figcaption>Add stock</figcaption></figure>
+    <figure><img src="screenshots/owner-inventory-damaged.jpg" alt=""><figcaption>Damaged or lost</figcaption></figure>
+    <figure><img src="screenshots/owner-cans-with-clients.jpg" alt=""><figcaption>Cans with clients</figcaption></figure>
+  </div>
+  <p><strong>Cans with clients</strong> lists every client holding your cans, most first, with their phone and last delivery date. Use it to plan collections.</p>
+</section>
+
+<!-- ───────────────────────────── 8 Money ───────────────────────────── -->
+<section class="part" id="money">
+  <h2>8 · Payments, cash flow and expenses</h2>
+  <h3>Payments</h3>
+  <p><span class="ui">More → Payments</span> lists every payment received, newest first: client, method, order and time. Tap a payment to see it. If it was entered by mistake, tap <span class="ui">Reverse payment</span>: an opposite entry is added and the amount goes back onto the client's balance. The original stays in the history, marked reversed.</p>
+  <h3>Cash flow and expenses</h3>
+  <p><span class="ui">More → Cash flow &amp; expenses</span> shows money in and out for Today, Yesterday, the last 7 days, this month or last month:</p>
+  <ul>
+    <li><strong>Money in</strong> (water sales, old dues collected, deposits, other income), <strong>money out</strong> (expenses), <strong>net</strong>, and <strong>cash in hand</strong>.</li>
+    <li>Totals <strong>by category</strong> and every entry.</li>
+  </ul>
+  <p>Payments from clients appear here automatically. To add an expense or other income, tap <span class="ui">+ Add</span>, choose <span class="ui">Expense</span> or <span class="ui">Other income</span>, pick a category (Fuel, Water purchase, Vehicle, Salary, Maintenance, Electricity, Other expense), enter the amount and method, and choose Today or Yesterday. An entry made by mistake can be opened and reversed with <span class="ui">Reverse entry</span>.</p>
+  <div class="row">
+    <figure><img src="screenshots/owner-payments.jpg" alt=""><figcaption>Payments</figcaption></figure>
+    <figure><img src="screenshots/owner-cashflow.jpg" alt=""><figcaption>Cash flow</figcaption></figure>
+    <figure><img src="screenshots/owner-cashflow-add-expense.jpg" alt=""><figcaption>Add an expense</figcaption></figure>
+  </div>
+</section>
+
+<!-- ───────────────────────────── 9 Reports ───────────────────────────── -->
+<section class="part" id="reports">
+  <h2>9 · Reports</h2>
+  <div class="feature">
+    <div>
+      <p class="lead">Open <span class="ui">More → Reports</span>. Every report can be downloaded as a CSV file for Excel or Google Sheets.</p>
+      <table class="kv">
+        <tr><td>Business summary</td><td>Everything in one report for 7 days, 1 month, 3 months or 1 year. Downloadable as <strong>PDF</strong> and CSV.</td></tr>
+        <tr><td>Daily sales</td><td>Sales, money collected and cans for each day.</td></tr>
+        <tr><td>Monthly sales</td><td>The last 12 months, month by month.</td></tr>
+        <tr><td>Who owes money</td><td>Every client with dues, biggest first, with when they last paid and a WhatsApp button.</td></tr>
+        <tr><td>Cans with clients</td><td>Who has your cans.</td></tr>
+        <tr><td>Stock movement</td><td>Opening stock, every kind of movement, and closing stock, for each product.</td></tr>
+        <tr><td>Payments received</td><td>Every payment in a period, for your records.</td></tr>
+        <tr><td>Cash flow &amp; expenses</td><td>Money in and out by category (section 8).</td></tr>
+      </table>
+    </div>
+    <figure><img src="screenshots/owner-reports.jpg" alt=""><figcaption>Reports</figcaption></figure>
+  </div>
+
+  <h3>Business summary</h3>
+  <p>Choose <span class="ui">7 days</span>, <span class="ui">1 month</span>, <span class="ui">3 months</span> or <span class="ui">1 year</span> at the top. The report shows:</p>
+  <ul>
+    <li><strong>This period:</strong> sales, collected, cans delivered and deliveries, and <em>change in dues</em> (sales not yet paid).</li>
+    <li><strong>Money received</strong> by Cash, UPI, Bank and Other; <strong>cash flow</strong> and <strong>expenses</strong> by category.</li>
+    <li><strong>Cans:</strong> delivered, empties collected, damaged cans taken back, damaged or lost in stock, refilled.</li>
+    <li><strong>Right now:</strong> total owed to you and cans with clients today, and <strong>stock now</strong>.</li>
+    <li><strong>Owner and staff:</strong> each person's deliveries, cans and money collected.</li>
+    <li><strong>Top clients</strong> by sales, and who <strong>owes you the most</strong>.</li>
+  </ul>
+  <p><span class="ui">Download PDF</span> makes an A4 document to keep, print or send on WhatsApp. <span class="ui">Download CSV</span> gives the same figures as a spreadsheet.</p>
+  <div class="row">
+    <figure><img src="screenshots/owner-report-summary.jpg" alt=""><figcaption>Business summary</figcaption></figure>
+    <figure><img src="screenshots/owner-report-summary-more.jpg" alt=""><figcaption>Right now, stock, staff, clients</figcaption></figure>
+    <figure><img src="screenshots/owner-report-outstanding.jpg" alt=""><figcaption>Who owes money</figcaption></figure>
+  </div>
+  <div class="row">
+    <figure><img src="screenshots/owner-report-daily.jpg" alt=""><figcaption>Daily sales</figcaption></figure>
+    <figure><img src="screenshots/owner-report-monthly.jpg" alt=""><figcaption>Monthly sales</figcaption></figure>
+    <figure><img src="screenshots/owner-report-stock.jpg" alt=""><figcaption>Stock movement</figcaption></figure>
+  </div>
+  <div class="note"><em>Sales</em> are counted when cans are delivered, not when an order is placed. <em>Change in dues</em> = sales − money collected: positive means clients now owe you more than at the start of the period.</div>
+</section>
+
+<!-- ───────────────────────────── 10 Staff (owner) ───────────────────────────── -->
+<section class="part" id="staff">
+  <h2>10 · Delivery staff</h2>
+  <p class="lead">Each delivery person gets their own login, so you know who delivered what and who collected which money.</p>
+  <h3>Add a member of staff</h3>
+  <ol class="steps">
+    <li>Open <span class="ui">More → Delivery staff</span> and tap <span class="ui">+ Add</span>.</li>
+    <li>Enter their <strong>name</strong> and <strong>phone number</strong>. A 6-digit PIN is suggested (tap <span class="ui">New</span> for another).</li>
+    <li>Tap <span class="ui">Add staff</span> and give them the phone number and PIN to log in.</li>
+  </ol>
+  <h3>See each person's day</h3>
+  <p>The staff list shows each person's deliveries and cans today and their <strong>staff expense</strong>. Tap a person to see:</p>
+  <ul>
+    <li><strong>Cash to hand over:</strong> cash they took minus cash they spent. This is what they should give you at the end of the day.</li>
+    <li>Deliveries, cans delivered and empties back, money collected (with UPI shown separately), expenses.</li>
+    <li><strong>Orders given to them</strong> and <strong>what they did today</strong>, line by line.</li>
+  </ul>
+  <div class="row">
+    <figure><img src="screenshots/owner-staff.jpg" alt=""><figcaption>Delivery staff</figcaption></figure>
+    <figure><img src="screenshots/owner-staff-add.jpg" alt=""><figcaption>Add delivery staff</figcaption></figure>
+    <figure><img src="screenshots/owner-staff-day.jpg" alt=""><figcaption>Raju's day</figcaption></figure>
+  </div>
+  <h3>What staff can and can't do</h3>
+  <ul>
+    <li><strong>Can:</strong> record deliveries, collect payments, collect empties, add expenses, deliver orders you give them, see clients' balances and cans.</li>
+    <li><strong>Can't:</strong> add or edit clients, see reports, stock, other staff or past days. Their screen starts fresh every morning.</li>
+  </ul>
+</section>
+
+<!-- ───────────────────────────── 11 Products & settings ───────────────────────────── -->
+<section class="part" id="settings">
+  <h2>11 · Products and settings</h2>
+  <h3>Products</h3>
+  <p><span class="ui">More → Products</span>. Add each thing you sell: name, size in litres, whether the container is <strong>returnable</strong> (20L cans are; bottle crates usually aren't), and an optional deposit amount. Returnable products are tracked as cans with clients; non-returnable ones are not. Prices are not set here: each client has their own price (section 6).</p>
+  <h3>More menu</h3>
+  <p>Your business details, and links to Inventory, Delivery staff, Reports, Payments, Cash flow &amp; expenses, Products, Notifications and Login &amp; security, plus <span class="ui">Log out</span>.</p>
+  <h3>Login &amp; security</h3>
+  <ul>
+    <li><strong>Face ID / fingerprint:</strong> the phones that can unlock with your face or finger. Remove a phone you no longer use.</li>
+    <li><strong>Change PIN:</strong> enter your current PIN and a new one.</li>
+  </ul>
+  <div class="row">
+    <figure><img src="screenshots/owner-products.jpg" alt=""><figcaption>Products</figcaption></figure>
+    <figure><img src="screenshots/owner-more.jpg" alt=""><figcaption>More</figcaption></figure>
+    <figure><img src="screenshots/owner-security.jpg" alt=""><figcaption>Login &amp; security</figcaption></figure>
+  </div>
+  <h3>Notifications</h3>
+  <p>Open <span class="ui">More → Notifications</span> and turn them on for this phone. The owner is told about new orders from clients, orders a client cancels, and when filled cans run low. Staff are told when an order is given to them. Clients are told when their order is accepted and on the way, when it is delivered (with their new balance), when a payment is recorded, and about payment reminders. Notifications are set per phone. On iPhone they work only after the app is added to the Home Screen.</p>
+</section>
+
+<!-- ───────────────────────────── 12 Staff guide ───────────────────────────── -->
+<section class="part" id="staffguide">
+  <h2>12 · Guide for delivery staff</h2>
+  <div class="feature">
+    <div>
+      <p class="lead">Log in with the phone number and PIN your owner gave you. Your screen shows only today. It starts fresh every morning.</p>
+      <h3>Today</h3>
+      <ul>
+        <li><strong>Cash to hand over:</strong> cash you collected minus cash you spent. Give this to the owner at the end of the day.</li>
+        <li>Your deliveries, cans delivered, empties back, money collected and expenses today.</li>
+        <li><strong>To deliver:</strong> orders the owner gave you. Tap <span class="ui">Deliver</span>, check the cans, empties and payment, and confirm.</li>
+        <li><strong>What you did today:</strong> every delivery, payment, empty collection and expense you recorded.</li>
+      </ul>
+      <p>Bottom bar: <span class="ui">Today</span>, <span class="ui">Clients</span>, <span class="ui">+</span> for a new delivery, <span class="ui">Expenses</span>, <span class="ui">More</span>.</p>
+    </div>
+    <figure><img src="screenshots/staff-home.jpg" alt=""><figcaption>Staff: Today</figcaption></figure>
+  </div>
+  <div class="row">
+    <figure><img src="screenshots/staff-deliver-order.jpg" alt=""><figcaption>Delivering an order given to you</figcaption></figure>
+    <figure><img src="screenshots/staff-client-page.jpg" alt=""><figcaption>A client: balance, cans, actions</figcaption></figure>
+    <figure><img src="screenshots/staff-expenses.jpg" alt=""><figcaption>Expenses today</figcaption></figure>
+  </div>
+  <ul>
+    <li><strong>New delivery:</strong> tap <span class="ui">+</span>, choose the client and record it exactly as in section 4.</li>
+    <li><strong>Clients:</strong> search and open a client to see what they owe and how many cans they have, then <span class="ui">Order</span>, take a <span class="ui">Payment</span>, collect <span class="ui">Empties</span>, or <span class="ui">Call</span> them.</li>
+    <li><strong>Expenses:</strong> fuel or anything you paid during the day: <span class="ui">+ Add</span>, choose the category, amount and how you paid.</li>
+  </ul>
+  <div class="note">If a client is missing, ask the owner. Only the owner adds clients.</div>
+</section>
+
+<!-- ───────────────────────────── 13 Client guide ───────────────────────────── -->
+<section class="part" id="clientguide">
+  <h2>13 · Guide for clients</h2>
+  <div class="feature">
+    <div>
+      <p class="lead">Your water supplier gives you a login (phone number and PIN). Open the app link, install it (section 2), and log in.</p>
+      <h3>Home</h3>
+      <ul>
+        <li>The big <span class="ui">Order water</span> button.</li>
+        <li><strong>Balance:</strong> what you owe your supplier (or your advance), and <span class="ui">Statement</span> for the full history.</li>
+        <li><strong>Cans with you</strong> and your last delivery.</li>
+        <li>Your recent orders and payments.</li>
+      </ul>
+      <h3>Order water</h3>
+      <ol class="steps">
+        <li>Tap <span class="ui">Order water</span>.</li>
+        <li>Choose how many of each product, <span class="ui">Today</span> or <span class="ui">Tomorrow</span>, and add a note if needed.</li>
+        <li>Tap <span class="ui">Send order</span>. You pay for what is actually delivered.</li>
+      </ol>
+      <p>You can cancel an order until your supplier accepts it.</p>
+    </div>
+    <figure><img src="screenshots/client-home.jpg" alt=""><figcaption>Client home</figcaption></figure>
+  </div>
+  <ul>
+    <li><strong>Orders:</strong> all your orders, or only those not delivered yet, with how much of each is paid.</li>
+    <li><strong>Payments:</strong> every payment your supplier recorded.</li>
+    <li><strong>Statement:</strong> every delivery and payment with your running balance, and every can delivered and returned.</li>
+    <li><strong>Account:</strong> notifications (order on the way, delivered, payment received, reminders), Login &amp; security, Log out.</li>
+  </ul>
+  <div class="row">
+    <figure><img src="screenshots/client-order-water.jpg" alt=""><figcaption>Order water</figcaption></figure>
+    <figure><img src="screenshots/client-orders.jpg" alt=""><figcaption>My orders</figcaption></figure>
+    <figure><img src="screenshots/client-statement.jpg" alt=""><figcaption>Statement: money and cans</figcaption></figure>
+  </div>
+</section>
+
+<!-- ───────────────────────────── 14 Offline ───────────────────────────── -->
+<section class="part" id="offline">
+  <h2>14 · Working without internet</h2>
+  <div class="feature">
+    <div>
+      <p class="lead">Deliveries happen where the signal is weak. The app keeps working.</p>
+      <ul>
+        <li>Clients, prices, balances and recent orders are kept on the phone, so you can open them without internet.</li>
+        <li>Deliveries, payments, empty collections and expenses recorded offline are <strong>saved on the phone</strong> and sent automatically when the connection returns.</li>
+        <li>A banner says <em>"You're offline. Showing saved information."</em> and a bar shows how many entries are <em>saved on this phone, waiting to sync</em>. Tap it to see them; when everything is sent it says <strong>Everything is synced</strong>.</li>
+        <li>Each entry is sent exactly once, even if the phone retries several times, so nothing is billed twice and nothing is lost.</li>
+      </ul>
+      <div class="note">An entry saved offline gets its order number after it syncs. Logging out keeps waiting entries; they are sent when the same person logs in again. Don't clear the browser's data while entries are waiting.</div>
+    </div>
+    <figure><img src="screenshots/owner-sync.jpg" alt=""><figcaption>Waiting to sync</figcaption></figure>
+  </div>
+</section>
+
+<!-- ───────────────────────────── 15 FAQ ───────────────────────────── -->
+<section class="part" id="faq">
+  <h2>15 · Questions and answers</h2>
+  <table class="kv">
+    <tr><td>I entered a wrong delivery.</td><td>Open the order and tap <span class="ui">Cancel delivery</span>, then record it again correctly. The cancelled one stays in the history, marked cancelled.</td></tr>
+    <tr><td>I entered a wrong payment.</td><td><span class="ui">More → Payments</span>, open the payment, <span class="ui">Reverse payment</span>.</td></tr>
+    <tr><td>A wrong expense.</td><td>Cash flow, open the entry, <span class="ui">Reverse entry</span>.</td></tr>
+    <tr><td>The cans at a client don't match.</td><td>Count them, then on the client's page tap <span class="ui">Correct</span> and enter the real number.</td></tr>
+    <tr><td>My stock doesn't match.</td><td>Count your filled and empty cans, then Inventory → <span class="ui">Correct count</span>.</td></tr>
+    <tr><td>A client paid in advance.</td><td>Record the payment as usual. Their balance shows as <strong>Advance</strong> and the next deliveries use it up.</td></tr>
+    <tr><td>A client broke a can.</td><td>When delivering, tap <span class="ui">Some cans came back damaged</span>, enter how many and the charge per can. The client is billed and the can goes to Damaged stock.</td></tr>
+    <tr><td>Can I delete something?</td><td>No. Money and can records are never erased. Every change is a new entry, so the history always explains the balance.</td></tr>
+    <tr><td>A staff member forgot their PIN.</td><td>Ask the owner to set a new PIN for them.</td></tr>
+    <tr><td>A client forgot their PIN.</td><td>The owner opens the client and taps <span class="ui">Reset PIN</span> under Client app.</td></tr>
+    <tr><td>A price changed.</td><td>Edit the client (pencil ✎) and change their price. Future orders use the new price; past orders keep theirs.</td></tr>
+    <tr><td>Is my data safe?</td><td>Logins use a PIN or Face ID / fingerprint, each person sees only what they need, and the database is backed up every night.</td></tr>
+  </table>
+</section>
+
+</body>
+</html>

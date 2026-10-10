@@ -127,6 +127,42 @@ describe('quick sale — cans and stock', () => {
     expect(cans.json().items.map((m: { change: number }) => m.change).sort()).toEqual([-7, 10]);
   });
 
+  it('damaged cans taken back leave the client, go to Damaged, and are not charged', async () => {
+    await quickSale(sale(biz.storeId, [{ productId: biz.canId, quantity: 10 }], { amount: '0' }));
+    // Next visit: 5 full in; 2 empties and 3 broken cans back; paid for the 5 only.
+    const { res, body } = await quickSale(
+      sale(biz.storeId, [{ productId: biz.canId, quantity: 5, emptyCollected: 2, damagedCollected: 3 }], { amount: '250' }),
+    );
+    expect(res.statusCode).toBe(201);
+    expect(body.order.items[0]).toMatchObject({ delivered: 5, emptyCollected: 2, damagedCollected: 3 });
+    expect(body.order.total).toBe('250.00');
+
+    const store = await storeDetail(biz.client, biz.storeId);
+    expect(store.cansOutstanding).toBe(10 + 5 - 2 - 3);
+    expect(store.balance).toBe('500.00');
+    expect(await stockOf(biz.client, biz.canId)).toMatchObject({ filled: 85, empty: 22, withCustomers: 10, damaged: 3 });
+    const cans = await biz.client.get(`/api/stores/${biz.storeId}/cans`);
+    expect(cans.json().items.find((m: { type: string }) => m.type === 'DAMAGE')).toMatchObject({ change: -3 });
+
+    // Cancelling that visit puts every can back where it was.
+    expect((await biz.client.post(`/api/orders/${body.order.id}/cancel`, { reason: 'Wrong shop' })).statusCode).toBe(200);
+    expect((await storeDetail(biz.client, biz.storeId)).cansOutstanding).toBe(10);
+    expect(await stockOf(biz.client, biz.canId)).toMatchObject({ filled: 90, empty: 20, withCustomers: 10, damaged: 0 });
+  });
+
+  it('damaged cans can be taken back when delivering a placed order', async () => {
+    await quickSale(sale(biz.storeId, [{ productId: biz.canId, quantity: 4 }], { amount: '0' }));
+    const order = (await biz.client.post('/api/orders', { clientId: crypto.randomUUID(), storeId: biz.storeId, items: [{ productId: biz.canId, quantity: 2 }] })).json();
+    const res = await biz.client.post(`/api/orders/${order.id}/deliver`, {
+      clientId: crypto.randomUUID(),
+      items: [{ productId: biz.canId, quantity: 2, damagedCollected: 1 }],
+      payment: { amount: '0', method: 'CASH' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect((await storeDetail(biz.client, biz.storeId)).cansOutstanding).toBe(4 + 2 - 1);
+    expect((await stockOf(biz.client, biz.canId)).damaged).toBe(1);
+  });
+
   it('non-returnable products leave stock but are not tracked at the store', async () => {
     const crateId = await createProduct(biz.client, { name: 'Bottle crate', isReturnable: false });
     await setPrice(biz.client, biz.storeId, crateId, '120');
@@ -137,6 +173,8 @@ describe('quick sale — cans and stock', () => {
 
     const bad = await quickSale(sale(biz.storeId, [{ productId: crateId, quantity: 1, emptyCollected: 1 }], { amount: '0' }));
     expect(bad.res.statusCode).toBe(400);
+    const broken = await quickSale(sale(biz.storeId, [{ productId: crateId, quantity: 1, damagedCollected: 1 }], { amount: '0' }));
+    expect(broken.res.statusCode).toBe(400);
   });
 
   it('a delivery larger than filled stock is accepted but flagged', async () => {

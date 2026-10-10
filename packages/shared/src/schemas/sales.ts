@@ -24,6 +24,8 @@ export const saleItemSchema = z.object({
   quantity: quantitySchema,
   /** Empty cans of this product collected back at the same visit. */
   emptyCollected: quantitySchema.default(0),
+  /** Broken cans the client handed back at the same visit (no charge; they go to Damaged). */
+  damagedCollected: quantitySchema.default(0),
   /**
    * Price per can for this sale. Defaults to the store's price. When the store has no price for
    * the product yet, this is required and becomes the store's price.
@@ -109,6 +111,7 @@ export interface OrderItemDto {
   lineTotal: string;
   delivered: number;
   emptyCollected: number;
+  damagedCollected: number;
 }
 
 export interface OrderPaymentDto {

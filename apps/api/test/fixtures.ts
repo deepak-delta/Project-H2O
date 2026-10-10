@@ -62,7 +62,7 @@ export async function setupBusiness(app: FastifyInstance): Promise<Business> {
 
 export function sale(
   storeId: string,
-  items: { productId: string; quantity: number; emptyCollected?: number; unitPrice?: string }[],
+  items: { productId: string; quantity: number; emptyCollected?: number; damagedCollected?: number; unitPrice?: string }[],
   payment: { amount: string; method?: string },
   extra: Record<string, unknown> = {},
 ) {

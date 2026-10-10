@@ -42,3 +42,37 @@ test('cans already at a new client count, deliveries add, empties subtract, and 
   expect(stores.items[0]?.cansOutstanding).toBe(18);
   assertNoErrors();
 });
+
+// Broken cans handed back: out of the client's count, into Damaged stock, never on the bill.
+test('damaged cans taken back at a delivery leave the client and are not charged', async ({ page }) => {
+  const { storeId } = await setupSupplier(page.request);
+  const assertNoErrors = watchForErrors(page);
+  await page.goto(`/stores/${storeId}`);
+  const cansCard = page.getByText('Cans with client').locator('../..');
+  const before = Number((await cansCard.innerText()).match(/\d+/)?.[0] ?? 0);
+
+  // Deliver 4; 1 empty and 2 broken cans come back.
+  await page.getByRole('link', { name: 'Order', exact: true }).click();
+  await page.getByRole('textbox', { name: '20L can' }).first().fill('4');
+  await page.getByRole('textbox', { name: '20L can' }).nth(1).fill('1');
+  // Tucked away until needed.
+  await expect(page.getByRole('textbox', { name: 'Damaged 20L can' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Some cans came back damaged' }).click();
+  await page.getByRole('textbox', { name: 'Damaged 20L can' }).fill('2');
+  await expectNoHorizontalScroll(page);
+  // The bill is for the 4 delivered only.
+  const confirm = page.getByRole('button', { name: /Confirm delivery/ });
+  const billText = await confirm.innerText();
+  await confirm.click();
+  await expect(page.getByText('Damaged cans taken back')).toBeVisible();
+  await expect(page.getByText(billText.replace(/^Confirm delivery · /, '')).first()).toBeVisible();
+
+  await page.getByRole('button', { name: 'View client' }).click();
+  await expect(cansCard).toContainText(String(before + 4 - 1 - 2));
+  await page.getByRole('radio', { name: 'Cans' }).click();
+  await expect(page.getByText(/Damaged cans taken back/)).toBeVisible();
+
+  const stock = await api<{ productName: string; damaged: number }[]>(page.request, 'GET', '/api/inventory');
+  expect(stock.find((p) => p.productName === '20L can')?.damaged).toBe(2);
+  assertNoErrors();
+});

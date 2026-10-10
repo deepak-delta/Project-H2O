@@ -49,7 +49,7 @@ async function createAndDeliver(tx: Tx, auth: OperatorContext, input: QuickSale)
     if (!product.active && item.quantity > 0) {
       throw validationError(`${product.name} is no longer sold. Turn it back on in Products first.`);
     }
-    return { product, quantity: item.quantity, emptyCollected: item.emptyCollected, unitPrice: item.unitPrice };
+    return { product, quantity: item.quantity, emptyCollected: item.emptyCollected, damagedCollected: item.damagedCollected, unitPrice: item.unitPrice };
   });
   // The store's own prices; a first sale of a product with no price yet sets it.
   const lines = await resolveLinePrices(tx, auth, store.id, requested, { canSetPrice: true });

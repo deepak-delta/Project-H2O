@@ -32,12 +32,13 @@ export function toOrderDto(o: OrderRow): OrderDto {
   const totalMinor = decToMinor(o.total);
   const paidMinor = paidTowardsOrder(totalMinor, o.payments);
 
-  const delivered = new Map<string, { delivered: number; empty: number }>();
+  const delivered = new Map<string, { delivered: number; empty: number; damaged: number }>();
   for (const d of o.deliveries) {
     for (const i of d.items) {
-      const acc = delivered.get(i.productId) ?? { delivered: 0, empty: 0 };
+      const acc = delivered.get(i.productId) ?? { delivered: 0, empty: 0, damaged: 0 };
       acc.delivered += i.deliveredQty;
       acc.empty += i.emptyCollected;
+      acc.damaged += i.damagedQty;
       delivered.set(i.productId, acc);
     }
   }
@@ -69,6 +70,7 @@ export function toOrderDto(o: OrderRow): OrderDto {
       lineTotal: decToString(i.lineTotal),
       delivered: delivered.get(i.productId)?.delivered ?? 0,
       emptyCollected: delivered.get(i.productId)?.empty ?? 0,
+      damagedCollected: delivered.get(i.productId)?.damaged ?? 0,
     })),
     payments: o.payments.map((p) => ({
       id: p.id,

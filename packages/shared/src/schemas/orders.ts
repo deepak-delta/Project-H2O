@@ -50,6 +50,7 @@ export const deliverOrderSchema = z.object({
         productId: z.string().min(1),
         quantity: quantitySchema,
         emptyCollected: quantitySchema.default(0),
+        damagedCollected: quantitySchema.default(0),
       }),
     )
     .min(1)

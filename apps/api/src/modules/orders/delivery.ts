@@ -12,6 +12,8 @@ export interface DeliveryLine {
   /** Full cans handed over. */
   quantity: number;
   emptyCollected: number;
+  /** Broken cans the store handed back: they leave the store's count and go to Damaged. */
+  damagedCollected: number;
   unitPrice: Minor;
 }
 
@@ -36,7 +38,7 @@ export async function recordDelivery(tx: Tx, auth: OperatorContext, a: RecordDel
   const { supplierId, userId } = auth;
 
   for (const l of a.lines) {
-    if (!l.product.isReturnable && l.emptyCollected > 0) {
+    if (!l.product.isReturnable && (l.emptyCollected > 0 || l.damagedCollected > 0)) {
       throw validationError(`${l.product.name} is not a returnable can.`);
     }
   }
@@ -59,6 +61,7 @@ export async function recordDelivery(tx: Tx, auth: OperatorContext, a: RecordDel
           productId: l.product.id,
           deliveredQty: l.quantity,
           emptyCollected: l.emptyCollected,
+          damagedQty: l.damagedCollected,
         })),
       },
     },
@@ -86,6 +89,16 @@ export async function recordDelivery(tx: Tx, auth: OperatorContext, a: RecordDel
           type: 'RETURN' as const,
           emptyDelta: l.emptyCollected,
           withCustomersDelta: -l.emptyCollected,
+        })),
+      // Broken cans come back too, but into Damaged, not into usable empties. No charge.
+      ...a.lines
+        .filter((l) => l.damagedCollected > 0)
+        .map((l) => ({
+          ...base,
+          productId: l.product.id,
+          type: 'DAMAGE' as const,
+          damagedDelta: l.damagedCollected,
+          withCustomersDelta: -l.damagedCollected,
         })),
     ],
   });

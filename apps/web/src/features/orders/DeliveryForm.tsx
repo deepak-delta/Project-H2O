@@ -1,5 +1,5 @@
 import { fromMinor, isMoneyString, lineTotalMinor, toMinor, type PaymentMethod, type QuickSaleResult, type StoreDetail } from '@wd/shared';
-import { CircleAlert, CircleCheck, CloudOff, MessageCircle } from 'lucide-react';
+import { CircleAlert, CircleCheck, CloudOff, MessageCircle, TriangleAlert } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
 import { Button } from '../../components/ui/Button';
@@ -33,7 +33,7 @@ export interface DeliveryLine {
 
 export interface DeliveryValues {
   /** `unitPrice` only for products the store had no price for: it becomes the store's price. */
-  items: { productId: string; quantity: number; emptyCollected: number; unitPrice?: string }[];
+  items: { productId: string; quantity: number; emptyCollected: number; damagedCollected: number; unitPrice?: string }[];
   payment: { amount: string; method: PaymentMethod };
 }
 
@@ -43,6 +43,7 @@ export interface DeliveryTotals {
   paid: string;
   cans: number;
   empties: number;
+  damaged: number;
 }
 
 interface DeliveryFormProps {
@@ -66,6 +67,9 @@ export function DeliveryForm({ store, lines, title, back, headerAction, top, pen
   const format = useMoney();
   const [quantities, setQuantities] = useState<Record<string, number>>(() => Object.fromEntries(lines.map((l) => [l.productId, l.initialQty])));
   const [empties, setEmpties] = useState<Record<string, number>>({});
+  // Broken cans handed back: rare, so tucked away behind a button until needed.
+  const [damaged, setDamaged] = useState<Record<string, number>>({});
+  const [showDamaged, setShowDamaged] = useState(false);
   const [payMode, setPayMode] = useState<PayMode>('full');
   const [otherAmount, setOtherAmount] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('CASH');
@@ -84,7 +88,8 @@ export function DeliveryForm({ store, lines, title, back, headerAction, top, pen
   const totalCans = Object.values(quantities).reduce((a, b) => a + b, 0);
   const overLimit = store.creditLimit !== null && newBalanceMinor > toMinor(store.creditLimit) && newBalanceMinor > balanceMinor;
   const returnable = lines.filter((l) => l.isReturnable && ((quantities[l.productId] ?? 0) > 0 || (heldBy.get(l.productId) ?? 0) > 0));
-  const tooManyEmpties = returnable.some((l) => (empties[l.productId] ?? 0) > (heldBy.get(l.productId) ?? 0) + (quantities[l.productId] ?? 0));
+  const collected = (productId: string) => (empties[productId] ?? 0) + (damaged[productId] ?? 0);
+  const tooManyEmpties = returnable.some((l) => collected(l.productId) > (heldBy.get(l.productId) ?? 0) + (quantities[l.productId] ?? 0));
 
   const submit = () => {
     setLocalError(null);
@@ -95,11 +100,12 @@ export function DeliveryForm({ store, lines, title, back, headerAction, top, pen
     onSubmit(
       {
         items: lines
-          .filter((l) => (quantities[l.productId] ?? 0) > 0 || (empties[l.productId] ?? 0) > 0)
+          .filter((l) => (quantities[l.productId] ?? 0) > 0 || collected(l.productId) > 0)
           .map((l) => ({
             productId: l.productId,
             quantity: quantities[l.productId] ?? 0,
             emptyCollected: empties[l.productId] ?? 0,
+            damagedCollected: damaged[l.productId] ?? 0,
             ...(l.unitPrice === null && (quantities[l.productId] ?? 0) > 0 ? { unitPrice: newPrices[l.productId] } : {}),
           })),
         payment: { amount: fromMinor(paidMinor), method },
@@ -109,6 +115,7 @@ export function DeliveryForm({ store, lines, title, back, headerAction, top, pen
         paid: fromMinor(paidMinor),
         cans: totalCans,
         empties: Object.values(empties).reduce((a, b) => a + b, 0),
+        damaged: Object.values(damaged).reduce((a, b) => a + b, 0),
       },
     );
   };
@@ -180,10 +187,33 @@ export function DeliveryForm({ store, lines, title, back, headerAction, top, pen
                   </div>
                 );
               })}
+              {showDamaged ? (
+                <div className="flex flex-col gap-4 border-t border-line pt-4">
+                  <p className="text-[15px] font-semibold text-ink">Damaged cans taken back</p>
+                  {returnable.map((l) => (
+                    <QuantityStepper
+                      key={l.productId}
+                      label={`Damaged ${l.name}`}
+                      hint="Not charged · goes to Damaged stock"
+                      value={damaged[l.productId] ?? 0}
+                      onChange={(v) => setDamaged((d) => ({ ...d, [l.productId]: v }))}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowDamaged(true)}
+                  className="-mb-1 flex h-11 items-center gap-1.5 self-start text-[15px] font-semibold text-brand-700"
+                >
+                  <TriangleAlert className="size-4" aria-hidden />
+                  Some cans came back damaged
+                </button>
+              )}
               {tooManyEmpties ? (
                 <p className="flex items-center gap-1.5 text-sm text-warn">
                   <CircleAlert className="size-4 shrink-0" aria-hidden />
-                  More empties than recorded at this client. Check the count, or correct the client's cans on their page if they had cans you never entered.
+                  More cans back than recorded at this client. Check the count, or correct the client's cans on their page if they had cans you never entered.
                 </p>
               ) : null}
             </Card>
@@ -289,6 +319,7 @@ export function DeliveryQueued({
             <SummaryRow label={`Total · ${totals.cans} can${totals.cans === 1 ? '' : 's'}`} value={format(totals.total)} strong />
             <SummaryRow label="Paid" value={format(totals.paid)} />
             {totals.empties ? <SummaryRow label="Empties collected" value={String(totals.empties)} /> : null}
+            {totals.damaged ? <SummaryRow label="Damaged cans taken back" value={String(totals.damaged)} /> : null}
           </dl>
           <p className="mt-4 text-sm text-muted">The order number and new balance appear after it syncs.</p>
         </Card>
@@ -320,10 +351,12 @@ export function DeliveryDone({ result, store, primary, secondary }: DeliveryDone
   const { order } = result;
   const lines = order.items.map((i) => `${i.delivered} × ${i.productName}`).join(', ');
   const empties = order.items.reduce((s, i) => s + i.emptyCollected, 0);
+  const damaged = order.items.reduce((s, i) => s + i.damagedCollected, 0);
   const receipt = [
     `Order #${order.orderNumber} delivered`,
     lines,
     empties ? `Empty cans collected: ${empties}` : null,
+    damaged ? `Damaged cans taken back: ${damaged}` : null,
     `Total: ${format(order.total)}`,
     `Paid: ${format(order.amountPaid)}`,
     `Balance due: ${format(result.storeBalance)}`,
@@ -346,6 +379,7 @@ export function DeliveryDone({ result, store, primary, secondary }: DeliveryDone
             <SummaryRow label="Total" value={format(order.total)} strong />
             <SummaryRow label="Paid" value={format(order.amountPaid)} />
             {empties ? <SummaryRow label="Empties collected" value={String(empties)} /> : null}
+            {damaged ? <SummaryRow label="Damaged cans taken back" value={String(damaged)} /> : null}
             <div className="my-2 border-t border-line" />
             <SummaryRow label="Client balance" value={<BalanceText balance={result.storeBalance} format={format} />} />
           </dl>

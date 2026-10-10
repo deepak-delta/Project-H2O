@@ -59,12 +59,14 @@ export async function orderDelivered(
 ): Promise<void> {
   const biz = await business(db, supplierId);
   const empties = order.items.reduce((s, i) => s + i.emptyCollected, 0);
+  const damaged = order.items.reduce((s, i) => s + i.damagedCollected, 0);
   await n.toStore(order.storeId, {
     title: order.status === 'PARTIALLY_DELIVERED' ? `Part of order #${order.orderNumber} delivered` : `Delivered: ${cans(delivered(order))}`,
     body: [
       `Bill ${formatMoney(order.total, biz.currency)}`,
       toMinor(order.amountPaid) > 0 ? `paid ${formatMoney(order.amountPaid, biz.currency)}` : null,
       empties ? `${empties} empties collected` : null,
+      damaged ? `${damaged} damaged cans taken back` : null,
       balanceText(storeBalance, biz.currency),
     ]
       .filter(Boolean)

@@ -43,6 +43,7 @@ const LEDGER_LABEL: Record<LedgerType, string> = {
 const CAN_LABEL: Partial<Record<MovementType, string>> = {
   DELIVERY: 'Delivered',
   RETURN: 'Empties returned',
+  DAMAGE: 'Damaged cans taken back',
   OPENING: 'Opening count',
   LOSS: 'Written off',
   ADJUSTMENT: 'Adjustment',

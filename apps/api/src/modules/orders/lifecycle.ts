@@ -138,7 +138,13 @@ export async function deliverOrder(
             const item = itemByProduct.get(i.productId);
             if (!item) throw validationError('Only products in this order can be delivered. Use a new order for extra products.');
             // The price agreed when the order was placed.
-            return { product: item.product, quantity: i.quantity, emptyCollected: i.emptyCollected, unitPrice: decToMinor(item.unitPrice) };
+            return {
+              product: item.product,
+              quantity: i.quantity,
+              emptyCollected: i.emptyCollected,
+              damagedCollected: i.damagedCollected,
+              unitPrice: decToMinor(item.unitPrice),
+            };
           });
 
           const now = resolveOccurredAt(input.occurredAt);

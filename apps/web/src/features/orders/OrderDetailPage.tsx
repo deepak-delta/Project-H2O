@@ -103,6 +103,7 @@ function OrderView({ order: o }: { order: OrderDto }) {
                   `${format(i.unitPrice)} each`,
                   i.delivered > 0 && i.delivered !== i.quantity ? `${i.delivered} delivered` : null,
                   i.emptyCollected ? `${i.emptyCollected} empties back` : null,
+                  i.damagedCollected ? `${i.damagedCollected} damaged back` : null,
                 ]
                   .filter(Boolean)
                   .join(' · ')}

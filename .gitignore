@@ -10,3 +10,9 @@ playwright-report
 test-results
 apps/api/src/generated
 .DS_Store
+
+# Database backups hold customer data and login hashes: never commit them.
+DatabaseBackup/
+*.dump
+*.sql.gz
+backup*.sql

@@ -39,6 +39,15 @@ test('business summary: everything in one report, for 7 days to 1 year, download
     await expect(stat('Sales')).toContainText('₹400');
   }
 
+  // A PDF document of the same report.
+  const pdfDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download PDF' }).click();
+  const pdfFile = await pdfDownload;
+  expect(pdfFile.suggestedFilename()).toMatch(/^business-summary-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.pdf$/);
+  const pdf = readFileSync(await pdfFile.path());
+  expect(pdf.subarray(0, 8).toString('latin1')).toBe('%PDF-1.4');
+  expect(pdf.toString('latin1')).toMatch(/\/Type \/Pages .* \/Count [12] >>/);
+
   // One CSV with every section.
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download CSV' }).click();

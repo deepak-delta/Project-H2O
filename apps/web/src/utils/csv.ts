@@ -1,3 +1,5 @@
+import { downloadBlob } from './download';
+
 export type CsvCell = string | number | null | undefined;
 
 /**
@@ -18,13 +20,5 @@ export function toCsv(header: string[], rows: CsvCell[][]): string {
 
 /** Saves a CSV file; the BOM makes Excel read ₹ and other UTF-8 text correctly. */
 export function downloadCsv(filename: string, header: string[], rows: CsvCell[][]): void {
-  const blob = new Blob(['﻿', toCsv(header, rows)], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlob(filename, new Blob(['\ufeff', toCsv(header, rows)], { type: 'text/csv;charset=utf-8' }));
 }

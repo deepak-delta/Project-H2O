@@ -1,18 +1,24 @@
 import type { BusinessSummary } from '@wd/shared';
-import type { ReactNode } from 'react';
+import { FileSpreadsheet, FileText } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
+import { Button } from '../../components/ui/Button';
 import { Card, ListCard, ListRow, SectionTitle } from '../../components/ui/Card';
 import { ErrorRetry } from '../../components/ui/LoadMore';
 import { usePeriod, type PeriodPreset } from '../../components/ui/PeriodPicker';
 import { Segmented } from '../../components/ui/Segmented';
 import { ListSkeleton } from '../../components/ui/Skeleton';
 import { Stat } from '../../components/ui/Stat';
-import { useMoney } from '../../hooks/useMoney';
+import { useMoney, useTimezone } from '../../hooks/useMoney';
 import { errorMessage } from '../../services/api';
+import { toast } from '../../stores/toast';
 import { downloadCsv, type CsvCell } from '../../utils/csv';
+import { downloadBlob } from '../../utils/download';
+import { useSession } from '../auth/session';
 import { CATEGORY_LABEL, METHOD_LABEL } from '../cashflow/labels';
 import { useBusinessSummary } from './api';
-import { CsvButton, formatPeriod } from './ReportBits';
+import { formatPeriod } from './ReportBits';
+import { summaryPdf } from './summaryPdf';
 
 // Four short choices that always fit on one line of a phone.
 const PERIODS: { value: PeriodPreset; label: string }[] = [
@@ -27,19 +33,51 @@ export default function SummaryReportPage() {
   const format = useMoney();
   const { period, setPreset } = usePeriod('1m', PERIODS.map((p) => p.value));
   const report = useBusinessSummary(period.from, period.to);
+  const business = useSession().business;
+  const tz = useTimezone();
+  const [makingPdf, setMakingPdf] = useState(false);
+
+  const downloadPdf = async (data: BusinessSummary) => {
+    setMakingPdf(true);
+    try {
+      const generatedAt = new Intl.DateTimeFormat('en-IN', { timeZone: tz, dateStyle: 'medium', timeStyle: 'short' }).format(new Date());
+      const pdf = await summaryPdf(data, { business: business.businessName, periodLabel: period.label, generatedAt, format });
+      downloadBlob(`business-summary-${data.from}-to-${data.to}.pdf`, pdf);
+    } catch (err) {
+      console.warn('PDF failed', err);
+      toast.error('The PDF could not be made. Please try again, or download the CSV.');
+    } finally {
+      setMakingPdf(false);
+    }
+  };
 
   return (
     <>
-      <PageHeader
-        title="Business summary"
-        back="/reports"
-        action={<CsvButton onClick={() => report.data && exportCsv(report.data, period.label)} disabled={!report.data} />}
-      />
+      <PageHeader title="Business summary" back="/reports" />
       <PageBody>
         <Segmented<PeriodPreset> label="Period" value={period.preset} onChange={setPreset} options={PERIODS} />
         <p className="-mt-2 px-1 text-sm text-muted">
           {formatPeriod(period.from)} – {formatPeriod(period.to)}
         </p>
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="secondary"
+            icon={<FileText className="size-5" />}
+            loading={makingPdf}
+            disabled={!report.data}
+            onClick={() => report.data && void downloadPdf(report.data)}
+          >
+            Download PDF
+          </Button>
+          <Button
+            variant="secondary"
+            icon={<FileSpreadsheet className="size-5" />}
+            disabled={!report.data}
+            onClick={() => report.data && exportCsv(report.data, period.label)}
+          >
+            Download CSV
+          </Button>
+        </div>
 
         {report.isPending ? (
           <ListSkeleton rows={8} />

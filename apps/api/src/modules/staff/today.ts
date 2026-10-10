@@ -21,7 +21,7 @@ export async function staffDayTotals(db: Db, supplierId: string, staffId: string
       SELECT COUNT(DISTINCT d.id) AS deliveries,
              SUM(di."deliveredQty") AS cans,
              SUM(di."emptyCollected") AS empties,
-             COALESCE(SUM(di."deliveredQty" * oi."unitPrice"), 0) AS sales
+             COALESCE(SUM(di."deliveredQty" * oi."unitPrice"), 0) + COALESCE(SUM(di."damageCharge"), 0) AS sales
       FROM "Delivery" d
       JOIN "DeliveryItem" di ON di."deliveryId" = d.id
       LEFT JOIN "OrderItem" oi ON oi."orderId" = d."orderId" AND oi."productId" = di."productId"
@@ -74,7 +74,7 @@ export async function staffToday(db: Db, supplierId: string, staff: { id: string
     db.delivery.findMany({
       where: { supplierId, deliveredById: staff.id, deliveredAt: inToday },
       include: {
-        items: { select: { productId: true, deliveredQty: true, emptyCollected: true } },
+        items: { select: { productId: true, deliveredQty: true, emptyCollected: true, damageCharge: true } },
         order: { select: { id: true, orderNumber: true, items: { select: { productId: true, unitPrice: true } } } },
         store: { select: { name: true } },
       },
@@ -118,7 +118,7 @@ export async function staffToday(db: Db, supplierId: string, staff: { id: string
       storeName: d.store.name,
       cans: d.items.reduce((s, i) => s + i.deliveredQty, 0),
       empties: d.items.reduce((s, i) => s + i.emptyCollected, 0),
-      amount: fromMinor(d.items.reduce((s, i) => s + i.deliveredQty * (price.get(i.productId) ?? 0), 0)),
+      amount: fromMinor(d.items.reduce((s, i) => s + i.deliveredQty * (price.get(i.productId) ?? 0) + decToMinor(i.damageCharge), 0)),
     });
   }
   // A return of several products is saved as one movement per product: show it as one entry.

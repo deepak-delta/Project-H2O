@@ -66,7 +66,7 @@ export async function orderDelivered(
       `Bill ${formatMoney(order.total, biz.currency)}`,
       toMinor(order.amountPaid) > 0 ? `paid ${formatMoney(order.amountPaid, biz.currency)}` : null,
       empties ? `${empties} empties collected` : null,
-      damaged ? `${damaged} damaged cans taken back` : null,
+      toMinor(order.damageCharge) > 0 ? `${damaged} damaged can${damaged === 1 ? '' : 's'} charged ${formatMoney(order.damageCharge, biz.currency)}` : null,
       balanceText(storeBalance, biz.currency),
     ]
       .filter(Boolean)

@@ -340,7 +340,8 @@ export function MoneyHistory({ storeId }: { storeId: string }) {
                   ) : null}
                 </>
               }
-              subtitle={`${formatDateTime(r.occurredAt, tz)} · balance ${format(r.balanceAfter)}`}
+              // A note says what a line was for, e.g. "2 damaged 20L can".
+              subtitle={[r.note, formatDateTime(r.occurredAt, tz), `balance ${format(r.balanceAfter)}`].filter(Boolean).join(' · ')}
               trailing={
                 <span className={`font-semibold tabular ${credit ? 'text-ok' : 'text-ink'}`}>
                   {credit ? '−' : '+'}

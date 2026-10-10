@@ -24,8 +24,10 @@ export const saleItemSchema = z.object({
   quantity: quantitySchema,
   /** Empty cans of this product collected back at the same visit. */
   emptyCollected: quantitySchema.default(0),
-  /** Broken cans the client handed back at the same visit (no charge; they go to Damaged). */
+  /** Broken cans the client handed back at the same visit; they go to Damaged stock. */
   damagedCollected: quantitySchema.default(0),
+  /** What the client pays for each damaged can (typed at the delivery). Needed when any came back. */
+  damageChargeEach: moneySchema({ allowZero: false }).optional(),
   /**
    * Price per can for this sale. Defaults to the store's price. When the store has no price for
    * the product yet, this is required and becomes the store's price.
@@ -39,6 +41,10 @@ export const paymentAtSaleSchema = z.object({
   method: z.enum(PAYMENT_METHODS).default('CASH'),
   referenceNumber: z.string().trim().max(60).optional(),
 });
+
+/** Damaged cans are paid for: a line with any needs its charge per can. */
+export const damageChargeGiven = (items: { damagedCollected: number; damageChargeEach?: string | undefined }[]) =>
+  items.every((i) => i.damagedCollected === 0 || i.damageChargeEach !== undefined);
 
 export const quickSaleSchema = z
   .object({
@@ -57,7 +63,8 @@ export const quickSaleSchema = z
   .refine((v) => new Set(v.items.map((i) => i.productId)).size === v.items.length, {
     message: 'Each product can only appear once',
     path: ['items'],
-  });
+  })
+  .refine((v) => damageChargeGiven(v.items), { message: 'Enter what the client pays for each damaged can', path: ['items'] });
 export type QuickSaleInput = z.input<typeof quickSaleSchema>;
 
 // ─── Payments ────────────────────────────────────────────────────────────────
@@ -112,6 +119,8 @@ export interface OrderItemDto {
   delivered: number;
   emptyCollected: number;
   damagedCollected: number;
+  /** Charged for this product's damaged cans across the order's deliveries. */
+  damageCharge: string;
 }
 
 export interface OrderPaymentDto {
@@ -137,6 +146,8 @@ export interface OrderDto {
   cancelReason: string | null;
   subtotal: string;
   discount: string;
+  /** Charged for damaged cans taken back; part of `total` (= subtotal − discount + damageCharge). */
+  damageCharge: string;
   total: string;
   /** Paid against this order (non-reversed payments linked to it). */
   amountPaid: string;

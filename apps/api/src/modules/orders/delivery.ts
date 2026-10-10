@@ -14,6 +14,8 @@ export interface DeliveryLine {
   emptyCollected: number;
   /** Broken cans the store handed back: they leave the store's count and go to Damaged. */
   damagedCollected: number;
+  /** What the store pays per damaged can (0 when none came back). */
+  damageChargeEach: Minor;
   unitPrice: Minor;
 }
 
@@ -45,7 +47,11 @@ export async function recordDelivery(tx: Tx, auth: OperatorContext, a: RecordDel
 
   const value = a.lines.reduce((sum, l) => sum + lineTotalMinor(l.unitPrice, l.quantity), 0);
   if (a.discount > value) throw validationError('Discount cannot be more than the amount delivered.');
-  const billed = value - a.discount;
+  const damageOf = (l: DeliveryLine) => (l.damagedCollected > 0 ? lineTotalMinor(l.damageChargeEach, l.damagedCollected) : 0);
+  if (a.lines.some((l) => l.damagedCollected > 0 && l.damageChargeEach <= 0)) {
+    throw validationError('Enter what the client pays for each damaged can.');
+  }
+  const billed = value - a.discount + a.lines.reduce((sum, l) => sum + damageOf(l), 0);
 
   const delivery = await tx.delivery.create({
     data: {
@@ -62,6 +68,7 @@ export async function recordDelivery(tx: Tx, auth: OperatorContext, a: RecordDel
           deliveredQty: l.quantity,
           emptyCollected: l.emptyCollected,
           damagedQty: l.damagedCollected,
+          damageCharge: minorToDec(damageOf(l)),
         })),
       },
     },
@@ -113,6 +120,24 @@ export async function recordDelivery(tx: Tx, auth: OperatorContext, a: RecordDel
       data: { supplierId, storeId: a.storeId, type: 'DISCOUNT', amount: minorToDec(-a.discount), orderId: a.orderId, occurredAt: a.at, createdById: userId },
     });
   }
+  // Damaged cans are paid for: billed on this order as its own sale line, so the store's
+  // ledger shows it separately and cancelling the order reverses it with everything else.
+  for (const l of a.lines) {
+    const charge = damageOf(l);
+    if (charge === 0) continue;
+    await tx.ledgerEntry.create({
+      data: {
+        supplierId,
+        storeId: a.storeId,
+        type: 'SALE',
+        amount: minorToDec(charge),
+        orderId: a.orderId,
+        note: `${l.damagedCollected} damaged ${l.product.name}`,
+        occurredAt: a.at,
+        createdById: userId,
+      },
+    });
+  }
 
   if (a.payment.amount > 0) {
     await recordPaymentInTx(tx, auth, {
@@ -151,8 +176,12 @@ export async function settleOrderTotals(tx: Tx, orderId: string, extraDiscount: 
     include: { items: true, deliveries: { include: { items: true } } },
   });
   const delivered = new Map<string, number>();
+  let damageCharge = 0;
   for (const d of order.deliveries) {
-    for (const i of d.items) delivered.set(i.productId, (delivered.get(i.productId) ?? 0) + i.deliveredQty);
+    for (const i of d.items) {
+      delivered.set(i.productId, (delivered.get(i.productId) ?? 0) + i.deliveredQty);
+      damageCharge += decToMinor(i.damageCharge);
+    }
   }
   const subtotal = order.items.reduce(
     (sum, i) => sum + lineTotalMinor(decToMinor(i.unitPrice), delivered.get(i.productId) ?? 0),
@@ -166,7 +195,8 @@ export async function settleOrderTotals(tx: Tx, orderId: string, extraDiscount: 
     data: {
       subtotal: minorToDec(subtotal),
       discount: minorToDec(discount),
-      total: minorToDec(subtotal - discount),
+      // Cans delivered, less discount, plus anything charged for damaged cans.
+      total: minorToDec(subtotal - discount + damageCharge),
       status: complete ? 'DELIVERED' : 'PARTIALLY_DELIVERED',
       deliveryDate: at,
     },

@@ -127,39 +127,52 @@ describe('quick sale — cans and stock', () => {
     expect(cans.json().items.map((m: { change: number }) => m.change).sort()).toEqual([-7, 10]);
   });
 
-  it('damaged cans taken back leave the client, go to Damaged, and are not charged', async () => {
+  it('damaged cans taken back leave the client, go to Damaged, and are charged to the client', async () => {
     await quickSale(sale(biz.storeId, [{ productId: biz.canId, quantity: 10 }], { amount: '0' }));
-    // Next visit: 5 full in; 2 empties and 3 broken cans back; paid for the 5 only.
+    // Next visit: 5 full in (₹50 each); 2 empties and 3 broken cans back at ₹150 each.
+    const noCharge = await quickSale(
+      sale(biz.storeId, [{ productId: biz.canId, quantity: 5, emptyCollected: 2, damagedCollected: 3 }], { amount: '0' }),
+    );
+    expect(noCharge.res.statusCode).toBe(400);
+    expect(noCharge.body.error.message).toMatch(/each damaged can/);
+
     const { res, body } = await quickSale(
-      sale(biz.storeId, [{ productId: biz.canId, quantity: 5, emptyCollected: 2, damagedCollected: 3 }], { amount: '250' }),
+      sale(biz.storeId, [{ productId: biz.canId, quantity: 5, emptyCollected: 2, damagedCollected: 3, damageChargeEach: '150' }], { amount: '250' }),
     );
     expect(res.statusCode).toBe(201);
-    expect(body.order.items[0]).toMatchObject({ delivered: 5, emptyCollected: 2, damagedCollected: 3 });
-    expect(body.order.total).toBe('250.00');
+    expect(body.order.items[0]).toMatchObject({ delivered: 5, emptyCollected: 2, damagedCollected: 3, damageCharge: '450.00' });
+    expect(body.order).toMatchObject({ subtotal: '250.00', damageCharge: '450.00', total: '700.00', amountPaid: '250.00', creditAmount: '450.00' });
 
+    // Owed: ₹500 from the first visit + ₹450 for the broken cans (the ₹250 for the cans was paid).
     const store = await storeDetail(biz.client, biz.storeId);
     expect(store.cansOutstanding).toBe(10 + 5 - 2 - 3);
-    expect(store.balance).toBe('500.00');
+    expect(store.balance).toBe('950.00');
     expect(await stockOf(biz.client, biz.canId)).toMatchObject({ filled: 85, empty: 22, withCustomers: 10, damaged: 3 });
     const cans = await biz.client.get(`/api/stores/${biz.storeId}/cans`);
     expect(cans.json().items.find((m: { type: string }) => m.type === 'DAMAGE')).toMatchObject({ change: -3 });
+    const ledger = await biz.client.get(`/api/stores/${biz.storeId}/ledger`);
+    expect(ledger.json().items.find((r: { note: string | null }) => r.note === '3 damaged 20L can')).toMatchObject({ type: 'SALE', amount: '450.00' });
 
-    // Cancelling that visit puts every can back where it was.
+    // Cancelling that visit takes the bill (damage charge included) off and puts every can back.
+    // The ₹250 really received stays, against the older ₹500.
     expect((await biz.client.post(`/api/orders/${body.order.id}/cancel`, { reason: 'Wrong shop' })).statusCode).toBe(200);
-    expect((await storeDetail(biz.client, biz.storeId)).cansOutstanding).toBe(10);
+    const after = await storeDetail(biz.client, biz.storeId);
+    expect(after).toMatchObject({ cansOutstanding: 10, balance: '250.00' });
     expect(await stockOf(biz.client, biz.canId)).toMatchObject({ filled: 90, empty: 20, withCustomers: 10, damaged: 0 });
   });
 
-  it('damaged cans can be taken back when delivering a placed order', async () => {
+  it('damaged cans can be charged when delivering a placed order', async () => {
     await quickSale(sale(biz.storeId, [{ productId: biz.canId, quantity: 4 }], { amount: '0' }));
     const order = (await biz.client.post('/api/orders', { clientId: crypto.randomUUID(), storeId: biz.storeId, items: [{ productId: biz.canId, quantity: 2 }] })).json();
     const res = await biz.client.post(`/api/orders/${order.id}/deliver`, {
       clientId: crypto.randomUUID(),
-      items: [{ productId: biz.canId, quantity: 2, damagedCollected: 1 }],
+      items: [{ productId: biz.canId, quantity: 2, damagedCollected: 1, damageChargeEach: '120.50' }],
       payment: { amount: '0', method: 'CASH' },
     });
     expect(res.statusCode).toBe(201);
-    expect((await storeDetail(biz.client, biz.storeId)).cansOutstanding).toBe(4 + 2 - 1);
+    expect(res.json().order).toMatchObject({ total: '220.50', damageCharge: '120.50' });
+    const store = await storeDetail(biz.client, biz.storeId);
+    expect(store).toMatchObject({ cansOutstanding: 4 + 2 - 1, balance: '420.50' });
     expect((await stockOf(biz.client, biz.canId)).damaged).toBe(1);
   });
 
@@ -173,7 +186,7 @@ describe('quick sale — cans and stock', () => {
 
     const bad = await quickSale(sale(biz.storeId, [{ productId: crateId, quantity: 1, emptyCollected: 1 }], { amount: '0' }));
     expect(bad.res.statusCode).toBe(400);
-    const broken = await quickSale(sale(biz.storeId, [{ productId: crateId, quantity: 1, damagedCollected: 1 }], { amount: '0' }));
+    const broken = await quickSale(sale(biz.storeId, [{ productId: crateId, quantity: 1, damagedCollected: 1, damageChargeEach: '50' }], { amount: '0' }));
     expect(broken.res.statusCode).toBe(400);
   });
 

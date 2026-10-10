@@ -32,13 +32,16 @@ export function toOrderDto(o: OrderRow): OrderDto {
   const totalMinor = decToMinor(o.total);
   const paidMinor = paidTowardsOrder(totalMinor, o.payments);
 
-  const delivered = new Map<string, { delivered: number; empty: number; damaged: number }>();
+  const delivered = new Map<string, { delivered: number; empty: number; damaged: number; charge: number }>();
+  let damageCharge = 0;
   for (const d of o.deliveries) {
     for (const i of d.items) {
-      const acc = delivered.get(i.productId) ?? { delivered: 0, empty: 0, damaged: 0 };
+      const acc = delivered.get(i.productId) ?? { delivered: 0, empty: 0, damaged: 0, charge: 0 };
       acc.delivered += i.deliveredQty;
       acc.empty += i.emptyCollected;
       acc.damaged += i.damagedQty;
+      acc.charge += decToMinor(i.damageCharge);
+      damageCharge += decToMinor(i.damageCharge);
       delivered.set(i.productId, acc);
     }
   }
@@ -57,6 +60,7 @@ export function toOrderDto(o: OrderRow): OrderDto {
     cancelReason: o.cancelReason,
     subtotal: decToString(o.subtotal),
     discount: decToString(o.discount),
+    damageCharge: fromMinor(damageCharge),
     total: decToString(o.total),
     amountPaid: fromMinor(paidMinor),
     creditAmount: fromMinor(totalMinor - paidMinor),
@@ -71,6 +75,7 @@ export function toOrderDto(o: OrderRow): OrderDto {
       delivered: delivered.get(i.productId)?.delivered ?? 0,
       emptyCollected: delivered.get(i.productId)?.empty ?? 0,
       damagedCollected: delivered.get(i.productId)?.damaged ?? 0,
+      damageCharge: fromMinor(delivered.get(i.productId)?.charge ?? 0),
     })),
     payments: o.payments.map((p) => ({
       id: p.id,

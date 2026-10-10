@@ -143,6 +143,7 @@ export async function deliverOrder(
               quantity: i.quantity,
               emptyCollected: i.emptyCollected,
               damagedCollected: i.damagedCollected,
+              damageChargeEach: i.damageChargeEach ? toMinor(i.damageChargeEach) : 0,
               unitPrice: decToMinor(item.unitPrice),
             };
           });

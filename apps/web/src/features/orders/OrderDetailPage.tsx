@@ -103,7 +103,7 @@ function OrderView({ order: o }: { order: OrderDto }) {
                   `${format(i.unitPrice)} each`,
                   i.delivered > 0 && i.delivered !== i.quantity ? `${i.delivered} delivered` : null,
                   i.emptyCollected ? `${i.emptyCollected} empties back` : null,
-                  i.damagedCollected ? `${i.damagedCollected} damaged back` : null,
+                  i.damagedCollected ? `${i.damagedCollected} damaged back (${format(i.damageCharge)})` : null,
                 ]
                   .filter(Boolean)
                   .join(' · ')}
@@ -120,12 +120,9 @@ function OrderView({ order: o }: { order: OrderDto }) {
 
         <Card className="p-4">
           <dl className="space-y-1.5 text-[15px]">
-            {o.discount !== '0.00' ? (
-              <>
-                <SummaryRow label="Subtotal" value={format(o.subtotal)} />
-                <SummaryRow label="Discount" value={`−${format(o.discount)}`} />
-              </>
-            ) : null}
+            {o.discount !== '0.00' || o.damageCharge !== '0.00' ? <SummaryRow label="Cans delivered" value={format(o.subtotal)} /> : null}
+            {o.discount !== '0.00' ? <SummaryRow label="Discount" value={`−${format(o.discount)}`} /> : null}
+            {o.damageCharge !== '0.00' ? <SummaryRow label="Damaged cans" value={format(o.damageCharge)} /> : null}
             <SummaryRow
               label={open ? 'Estimated total' : o.status === 'CANCELLED' ? 'Total (cancelled, not owed)' : 'Total'}
               value={format(o.total)}

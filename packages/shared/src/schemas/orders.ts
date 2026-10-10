@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { OrderListItem, PaymentDto } from './sales';
-import { optionalNote, paymentAtSaleSchema } from './sales';
+import { damageChargeGiven, optionalNote, paymentAtSaleSchema } from './sales';
 import type { StoreCans, StorePriceDto } from './catalog';
 import { clientIdSchema, moneySchema, occurredAtSchema, phoneSchema, pinSchema, quantitySchema } from './common';
 
@@ -51,12 +51,14 @@ export const deliverOrderSchema = z.object({
         quantity: quantitySchema,
         emptyCollected: quantitySchema.default(0),
         damagedCollected: quantitySchema.default(0),
+        damageChargeEach: moneySchema({ allowZero: false }).optional(),
       }),
     )
     .min(1)
     .max(20)
     .refine((items) => items.some((i) => i.quantity > 0), 'Enter how many cans were delivered')
-    .refine((items) => new Set(items.map((i) => i.productId)).size === items.length, 'Each product can only appear once'),
+    .refine((items) => new Set(items.map((i) => i.productId)).size === items.length, 'Each product can only appear once')
+    .refine(damageChargeGiven, 'Enter what the client pays for each damaged can'),
   discount: moneySchema().default('0'),
   payment: paymentAtSaleSchema,
   notes: optionalNote,

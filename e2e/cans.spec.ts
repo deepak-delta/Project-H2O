@@ -43,15 +43,15 @@ test('cans already at a new client count, deliveries add, empties subtract, and 
   assertNoErrors();
 });
 
-// Broken cans handed back: out of the client's count, into Damaged stock, never on the bill.
-test('damaged cans taken back at a delivery leave the client and are not charged', async ({ page }) => {
+// Broken cans handed back: out of the client's count, into Damaged stock, and paid for by the client.
+test('damaged cans taken back at a delivery leave the client and are charged to them', async ({ page }) => {
   const { storeId } = await setupSupplier(page.request);
   const assertNoErrors = watchForErrors(page);
   await page.goto(`/stores/${storeId}`);
   const cansCard = page.getByText('Cans with client').locator('../..');
   const before = Number((await cansCard.innerText()).match(/\d+/)?.[0] ?? 0);
 
-  // Deliver 4; 1 empty and 2 broken cans come back.
+  // Deliver 4 at ₹50; 1 empty and 2 broken cans come back, ₹150 each.
   await page.getByRole('link', { name: 'Order', exact: true }).click();
   await page.getByRole('textbox', { name: '20L can' }).first().fill('4');
   await page.getByRole('textbox', { name: '20L can' }).nth(1).fill('1');
@@ -59,16 +59,24 @@ test('damaged cans taken back at a delivery leave the client and are not charged
   await expect(page.getByRole('textbox', { name: 'Damaged 20L can' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Some cans came back damaged' }).click();
   await page.getByRole('textbox', { name: 'Damaged 20L can' }).fill('2');
-  await expectNoHorizontalScroll(page);
-  // The bill is for the 4 delivered only.
   const confirm = page.getByRole('button', { name: /Confirm delivery/ });
-  const billText = await confirm.innerText();
+  // The charge must be entered.
   await confirm.click();
-  await expect(page.getByText('Damaged cans taken back')).toBeVisible();
-  await expect(page.getByText(billText.replace(/^Confirm delivery · /, '')).first()).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Enter what the client pays for each damaged 20L can');
+  await page.getByLabel('Charge per damaged 20L can').fill('150');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expectNoHorizontalScroll(page);
+  await expect(page.getByText('Includes 2 damaged cans')).toBeVisible();
+  // ₹200 for the cans + ₹300 for the broken ones.
+  await expect(confirm).toContainText('₹500');
+  await page.getByRole('radio', { name: 'Credit' }).click();
+  await confirm.click();
+  await expect(page.getByText('Damaged cans (2)')).toBeVisible();
 
   await page.getByRole('button', { name: 'View client' }).click();
   await expect(cansCard).toContainText(String(before + 4 - 1 - 2));
+  await expect(page.getByText('Balance', { exact: true }).locator('..')).toContainText('₹500');
+  await expect(page.getByText(/2 damaged 20L can/)).toBeVisible();
   await page.getByRole('radio', { name: 'Cans' }).click();
   await expect(page.getByText(/Damaged cans taken back/)).toBeVisible();
 

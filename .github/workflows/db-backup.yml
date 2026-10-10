@@ -1,0 +1,108 @@
+# Daily backup of the production database (Supabase), kept as a downloadable artifact.
+#
+# Every run also restores the backup into an empty Postgres and checks it, so a backup that
+# can't be restored fails loudly (GitHub emails the repo owner) instead of being found broken
+# on the day it's needed.
+#
+# Setup: add a repository secret SUPABASE_DB_URL = the Supabase "Session pooler" connection
+# string (port 5432), the same value as DIRECT_URL in .env.
+# Restore: see the "Restoring" notes at the bottom of this file.
+name: Database backup
+
+on:
+  schedule:
+    - cron: '30 21 * * *' # 21:30 UTC = 03:00 in India, when nobody is delivering
+  workflow_dispatch: # "Run workflow" button for a backup on demand
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      # Scratch database the backup is test-restored into. Same major version as Supabase.
+      restore-check:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      CHECK_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - name: Install Postgres 17 client tools
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Dump the database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then echo "::error::Add the SUPABASE_DB_URL repository secret first."; exit 1; fi
+          STAMP=$(TZ=Asia/Kolkata date +%Y-%m-%d_%H%M)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          # Only the app's own schema (Supabase's internal schemas are theirs to back up).
+          # Custom format: compressed, and tables can be restored one at a time if ever needed.
+          pg_dump "$SUPABASE_DB_URL" --schema=public --format=custom --compress=9 \
+            --no-owner --no-privileges --file "water-db-$STAMP.dump"
+          ls -lh "water-db-$STAMP.dump"
+
+      - name: Prove the backup restores, and that the books add up
+        run: |
+          # --clean --if-exists: the backup recreates the public schema, so replace the empty one.
+          pg_restore --dbname "$CHECK_URL" --clean --if-exists --no-owner --no-privileges --exit-on-error "water-db-$STAMP.dump"
+          psql "$CHECK_URL" -v ON_ERROR_STOP=1 -At <<'SQL' > check.txt
+            SELECT 'businesses', count(*) FROM "Supplier"
+            UNION ALL SELECT 'clients', count(*) FROM "Store"
+            UNION ALL SELECT 'orders', count(*) FROM "Order"
+            UNION ALL SELECT 'payments', count(*) FROM "Payment"
+            UNION ALL SELECT 'ledger rows', count(*) FROM "LedgerEntry"
+            UNION ALL SELECT 'stock moves', count(*) FROM "InventoryMovement"
+            -- Running totals must equal a recount of the history in the restored copy.
+            UNION ALL SELECT 'MISMATCH client balances', count(*) FROM "Store" s
+              LEFT JOIN "ClientTotals" t ON t."storeId" = s.id
+              LEFT JOIN (SELECT "storeId", SUM(amount) a FROM "LedgerEntry" GROUP BY 1) l ON l."storeId" = s.id
+              WHERE COALESCE(t.balance, 0) <> COALESCE(l.a, 0)
+            UNION ALL SELECT 'MISMATCH stock', count(*) FROM "ProductStock" p
+              LEFT JOIN (SELECT "productId", SUM("filledDelta") f, SUM("emptyDelta") e, SUM("withCustomersDelta") w, SUM("damagedDelta") d FROM "InventoryMovement" GROUP BY 1) m ON m."productId" = p."productId"
+              WHERE (p.filled, p.empty, p."withCustomers", p.damaged) IS DISTINCT FROM (COALESCE(m.f, 0)::int, COALESCE(m.e, 0)::int, COALESCE(m.w, 0)::int, COALESCE(m.d, 0)::int);
+          SQL
+          {
+            echo "### Backup $STAMP (IST)"
+            echo "Size: $(du -h "water-db-$STAMP.dump" | cut -f1)"
+            echo '```'
+            tr '|' '\t' < check.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat check.txt
+          if grep -E '^MISMATCH[^|]*\|[1-9]' check.txt; then
+            echo "::error::Running totals don't match the history in this backup. Check the database."
+            exit 1
+          fi
+
+      - name: Keep the backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: water-db-${{ env.STAMP }}
+          path: water-db-${{ env.STAMP }}.dump
+          retention-days: 14
+          compression-level: 0 # already compressed
+
+# Restoring (needs Postgres 17 tools, e.g. `brew install postgresql@17`):
+#   1. GitHub → Actions → Database backup → pick a day → download the artifact, unzip it.
+#   2. Look before you overwrite: restore into a local database first and check it:
+#        createdb water_check && pg_restore --clean --if-exists --no-owner --no-privileges -d water_check water-db-<date>.dump
+#   3. To put it back into Supabase (replaces the current data; stop the app first):
+#        pg_restore --clean --if-exists --no-owner --no-privileges -d "<Session pooler URL>" water-db-<date>.dump

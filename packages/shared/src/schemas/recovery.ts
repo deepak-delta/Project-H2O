@@ -19,6 +19,12 @@ export const recoveryCodeSchema = z
 export const recoverySetupSchema = z.object({
   currentPin: pinSchema,
   code: totpCodeSchema.optional(),
+  /**
+   * A setup already in progress keeps its key, so an authenticator that already has it still
+   * works (e.g. the app reloaded while the user was in Google Authenticator). `restart` asks
+   * for a brand-new key instead.
+   */
+  restart: z.boolean().optional(),
 });
 
 export const recoveryVerifySchema = z.object({ code: totpCodeSchema });
@@ -35,6 +41,8 @@ export interface RecoveryStatus {
   enabled: boolean;
   enabledAt: string | null;
   recoveryCodesLeft: number;
+  /** A setup is waiting for its first code until this time (no secret is sent here). */
+  pendingSetupExpiresAt: string | null;
 }
 
 /** Shown once while setting up; the secret is never sent again after setup is verified. */

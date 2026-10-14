@@ -44,7 +44,7 @@ const events = (type: string) => ctx.db.authEvent.count({ where: { type } });
 describe('setting up PIN recovery', () => {
   it('starts off, and needs the current PIN to begin', async () => {
     const { client } = await signupSupplier(ctx.app, { pin: PIN });
-    expect((await client.get('/api/auth/recovery')).json()).toEqual({ available: true, enabled: false, enabledAt: null, recoveryCodesLeft: 0 });
+    expect((await client.get('/api/auth/recovery')).json()).toEqual({ available: true, enabled: false, enabledAt: null, recoveryCodesLeft: 0, pendingSetupExpiresAt: null });
     const wrong = await client.post('/api/auth/recovery/setup', { currentPin: '111111' });
     expect(wrong.statusCode).toBe(400);
     expect(wrong.json().error.fields.currentPin).toBeTruthy();
@@ -81,6 +81,37 @@ describe('setting up PIN recovery', () => {
     expect(stored).toHaveLength(10);
     for (const c of recoveryCodes) expect(JSON.stringify(stored)).not.toContain(c.replace('-', ''));
     expect(await events('TOTP_ENABLED')).toBe(1);
+  });
+
+  it('coming back to an unfinished setup keeps the same key (e.g. the app reloaded in between)', async () => {
+    const { client } = await signupSupplier(ctx.app, { pin: PIN });
+    const first = (await client.post('/api/auth/recovery/setup', { currentPin: PIN })).json<RecoverySetupInfo>();
+    const status = (await client.get('/api/auth/recovery')).json();
+    expect(status.pendingSetupExpiresAt).toBeTruthy();
+    expect(JSON.stringify(status)).not.toContain(first.secret.slice(0, 9));
+
+    const again = (await client.post('/api/auth/recovery/setup', { currentPin: PIN })).json<RecoverySetupInfo>();
+    expect(again.secret).toBe(first.secret);
+    // The authenticator that got the first key works.
+    expect((await client.post('/api/auth/recovery/verify', { code: codeFor(first.secret) })).statusCode).toBe(200);
+    expect((await client.get('/api/auth/recovery')).json()).toMatchObject({ enabled: true, pendingSetupExpiresAt: null });
+  });
+
+  it('"start over" makes a new key, and the old one stops working', async () => {
+    const { client } = await signupSupplier(ctx.app, { pin: PIN });
+    const first = (await client.post('/api/auth/recovery/setup', { currentPin: PIN })).json<RecoverySetupInfo>();
+    const fresh = (await client.post('/api/auth/recovery/setup', { currentPin: PIN, restart: true })).json<RecoverySetupInfo>();
+    expect(fresh.secret).not.toBe(first.secret);
+    expect((await client.post('/api/auth/recovery/verify', { code: codeFor(first.secret) })).statusCode).toBe(400);
+    expect((await client.post('/api/auth/recovery/verify', { code: codeFor(fresh.secret) })).statusCode).toBe(200);
+  });
+
+  it('wrong codes before coming back still count (no fresh 5 tries by re-entering the PIN)', async () => {
+    const { client } = await signupSupplier(ctx.app, { pin: PIN });
+    await client.post('/api/auth/recovery/setup', { currentPin: PIN });
+    for (let i = 0; i < 4; i++) await client.post('/api/auth/recovery/verify', { code: '000000' });
+    await client.post('/api/auth/recovery/setup', { currentPin: PIN });
+    expect((await client.post('/api/auth/recovery/verify', { code: '000000' })).statusCode).toBe(410);
   });
 
   it('rejects wrong and expired codes, and gives up after 5 wrong ones', async () => {

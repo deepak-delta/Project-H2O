@@ -46,6 +46,17 @@ test('set up PIN recovery with an authenticator app, then reset a forgotten PIN 
   await expectNoHorizontalScroll(page);
   await expectAccessible(page);
 
+  // The app reloads while the user is in their authenticator (common on iPhone): coming back goes
+  // straight to the code, with the same key.
+  await page.reload();
+  await expect(page.getByText(/Finish setting up/)).toBeVisible();
+  await page.getByRole('button', { name: 'Show the setup key again' }).click();
+  await enterPin(page, /^Your current PIN$/, PIN);
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.locator('[data-setup-key]')).toHaveText(key);
+  await page.reload();
+  await expect(page.getByText(/Finish setting up/)).toBeVisible();
+
   // A wrong code is refused; the real one switches recovery on.
   await page.getByLabel('Code from your authenticator app').fill('000000');
   await page.getByRole('button', { name: 'Verify and turn on' }).click();

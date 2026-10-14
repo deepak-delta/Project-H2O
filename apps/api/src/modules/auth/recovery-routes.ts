@@ -101,7 +101,7 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: AppDeps): voi
   app.get('/api/auth/recovery', async (req): Promise<RecoveryStatus> => {
     const { userId } = requireAuth(req);
     const [factor, codesLeft] = await Promise.all([
-      db.totpFactor.findUnique({ where: { userId }, select: { enabledAt: true } }),
+      db.totpFactor.findUnique({ where: { userId }, select: { enabledAt: true, pendingSecretEnc: true, pendingExpiresAt: true } }),
       db.recoveryCode.count({ where: { userId, usedAt: null } }),
     ]);
     return {
@@ -109,6 +109,10 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: AppDeps): voi
       enabled: Boolean(factor?.enabledAt),
       enabledAt: factor?.enabledAt?.toISOString() ?? null,
       recoveryCodesLeft: factor?.enabledAt ? codesLeft : 0,
+      pendingSetupExpiresAt:
+        factor?.pendingSecretEnc && factor.pendingExpiresAt && factor.pendingExpiresAt.getTime() > Date.now()
+          ? factor.pendingExpiresAt.toISOString()
+          : null,
     };
   });
 
@@ -122,11 +126,24 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: AppDeps): voi
     // Replacing a working authenticator needs a code from it, not just the PIN.
     if (existing?.enabledAt) await confirmAuthenticator(req, user, input.code, key);
 
-    const secret = newTotpSecret();
+    // Coming back to an unfinished setup (e.g. the app reloaded while the user was adding the key
+    // to their authenticator) keeps the same key, so the account they already added still works.
+    const inProgress =
+      !input.restart && existing?.pendingSecretEnc && existing.pendingExpiresAt && existing.pendingExpiresAt.getTime() > Date.now()
+        ? existing.pendingSecretEnc
+        : null;
+    const secret = inProgress ? unseal(inProgress, key, totpBinding(user.id)) : newTotpSecret();
     const pendingExpiresAt = new Date(Date.now() + SETUP_MINUTES * 60 * 1000);
-    const pending = { pendingSecretEnc: seal(secret, key, totpBinding(user.id)), pendingExpiresAt, pendingFailedAttempts: 0 };
+    const pending = inProgress
+      ? { pendingExpiresAt }
+      : { pendingSecretEnc: seal(secret, key, totpBinding(user.id)), pendingExpiresAt, pendingFailedAttempts: 0 };
     await db.totpFactor.upsert({ where: { userId: user.id }, create: { userId: user.id, ...pending }, update: pending });
-    await recordAuthEvent(db, { type: 'TOTP_SETUP_STARTED', userId: user.id, ip: req.ip, detail: { replacing: Boolean(existing?.enabledAt) } });
+    await recordAuthEvent(db, {
+      type: 'TOTP_SETUP_STARTED',
+      userId: user.id,
+      ip: req.ip,
+      detail: { replacing: Boolean(existing?.enabledAt), resumed: Boolean(inProgress) },
+    });
 
     const accountName = formatPhone(user.phone);
     const uri = otpauthUri(secret, env.RP_NAME, accountName);

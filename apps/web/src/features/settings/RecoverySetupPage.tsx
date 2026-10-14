@@ -15,7 +15,12 @@ import { copyText } from '../../utils/clipboard';
 import { digitsOnly, recoveryStatusKey, useRecoveryStatus } from './recovery';
 import { RecoveryCodesView } from './RecoveryCodesView';
 
-type Step = { kind: 'confirm' } | { kind: 'scan'; info: RecoverySetupInfo } | { kind: 'codes'; codes: string[] } | { kind: 'expired' };
+type Step =
+  | { kind: 'confirm'; restart?: boolean }
+  | { kind: 'resume' }
+  | { kind: 'scan'; info: RecoverySetupInfo }
+  | { kind: 'codes'; codes: string[] }
+  | { kind: 'expired' };
 
 /**
  * Set up (or replace) PIN recovery with an authenticator app. Made for doing it on the same
@@ -25,8 +30,15 @@ export default function RecoverySetupPage() {
   const status = useRecoveryStatus();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [step, setStep] = useState<Step>({ kind: 'confirm' });
+  const [chosen, setStep] = useState<Step | null>(null);
   const replacing = status.data?.enabled ?? false;
+  // Came back to an unfinished setup (the app may have reloaded while adding the key to the
+  // authenticator): go straight to entering the code.
+  const step: Step = chosen ?? (status.data?.pendingSetupExpiresAt ? { kind: 'resume' } : { kind: 'confirm' });
+  const onVerified = (codes: string[]) => {
+    void queryClient.invalidateQueries({ queryKey: recoveryStatusKey });
+    setStep({ kind: 'codes', codes });
+  };
 
   const finish = () => {
     void queryClient.invalidateQueries({ queryKey: recoveryStatusKey });
@@ -42,16 +54,16 @@ export default function RecoverySetupPage() {
         ) : !status.data?.available ? (
           <Card className="p-4 text-[15px] text-muted">PIN recovery isn't available yet. Please try again later.</Card>
         ) : step.kind === 'confirm' ? (
-          <ConfirmStep replacing={replacing} onReady={(info) => setStep({ kind: 'scan', info })} />
-        ) : step.kind === 'scan' ? (
-          <ScanStep
-            info={step.info}
-            onVerified={(codes) => {
-              void queryClient.invalidateQueries({ queryKey: recoveryStatusKey });
-              setStep({ kind: 'codes', codes });
-            }}
+          <ConfirmStep replacing={replacing} restart={step.restart} onReady={(info) => setStep({ kind: 'scan', info })} />
+        ) : step.kind === 'resume' ? (
+          <ResumeStep
+            onVerified={onVerified}
             onExpired={() => setStep({ kind: 'expired' })}
+            onShowKey={() => setStep({ kind: 'confirm' })}
+            onRestart={() => setStep({ kind: 'confirm', restart: true })}
           />
+        ) : step.kind === 'scan' ? (
+          <ScanStep info={step.info} onVerified={onVerified} onExpired={() => setStep({ kind: 'expired' })} />
         ) : step.kind === 'codes' ? (
           <RecoveryCodesView codes={step.codes} onDone={finish} />
         ) : (
@@ -67,13 +79,14 @@ export default function RecoverySetupPage() {
   );
 }
 
-function ConfirmStep({ replacing, onReady }: { replacing: boolean; onReady: (info: RecoverySetupInfo) => void }) {
+function ConfirmStep({ replacing, restart, onReady }: { replacing: boolean; restart?: boolean; onReady: (info: RecoverySetupInfo) => void }) {
   const [pin, setPin] = useState('');
   const [code, setCode] = useState('');
   const [errors, setErrors] = useState<{ currentPin?: string; code?: string; form?: string }>({});
 
   const start = useMutation({
-    mutationFn: () => api.post<RecoverySetupInfo>('/auth/recovery/setup', replacing ? { currentPin: pin, code } : { currentPin: pin }),
+    mutationFn: () =>
+      api.post<RecoverySetupInfo>('/auth/recovery/setup', { currentPin: pin, ...(replacing ? { code } : {}), ...(restart ? { restart: true } : {}) }),
     onSuccess: onReady,
     onError: (err) => {
       if (err instanceof ApiError && err.fields) setErrors({ currentPin: err.fields.currentPin, code: err.fields.code, form: err.fields.currentPin || err.fields.code ? undefined : err.message });
@@ -92,7 +105,9 @@ function ConfirmStep({ replacing, onReady }: { replacing: boolean; onReady: (inf
   return (
     <>
       <p className="px-1 text-[15px] text-muted">
-        {replacing
+        {restart
+          ? "A new setup key will be made. First delete the old Water Delivery entry from your authenticator app, so you don't mix them up."
+          : replacing
           ? 'Moving to a new phone or app? Confirm with your PIN and a code from your current authenticator app. Your old authenticator stops working once the new one is set up.'
           : "If you ever forget your PIN, a code from an authenticator app (Google Authenticator, Microsoft Authenticator or Authy) lets you set a new one yourself. No SMS needed. It's free."}
       </p>
@@ -125,20 +140,6 @@ function ConfirmStep({ replacing, onReady }: { replacing: boolean; onReady: (inf
 function ScanStep({ info, onVerified, onExpired }: { info: RecoverySetupInfo; onVerified: (codes: string[]) => void; onExpired: () => void }) {
   const [keyShown, setKeyShown] = useState(true);
   const [qrShown, setQrShown] = useState(false);
-  const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const until = new Date(info.expiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
-  const verify = useMutation({
-    mutationFn: () => api.post<RecoveryCodesResult>('/auth/recovery/verify', { code }),
-    onSuccess: (r) => onVerified(r.recoveryCodes),
-    onError: (err) => {
-      if (err instanceof ApiError && err.code === 'EXPIRED') return onExpired();
-      setCode('');
-      setError(errorMessage(err));
-    },
-  });
-
   const copyKey = () =>
     void copyText(info.secret.replace(/ /g, '')).then((ok) => (ok ? toast.success('Setup key copied. Paste it into your authenticator app.') : toast.error("Couldn't copy. Type the key instead.")));
 
@@ -212,25 +213,77 @@ function ScanStep({ info, onVerified, onExpired }: { info: RecoverySetupInfo; on
 
       <section>
         <SectionTitle>2 · Enter the 6-digit code</SectionTitle>
-        <Card className="flex flex-col gap-4 p-4">
-          <Field
-            label="Code from your authenticator app"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="123456"
-            value={code}
-            onChange={(e) => {
-              setError(null);
-              setCode(digitsOnly(e.target.value));
-            }}
-            error={error ?? undefined}
-            hint={`Finish by ${until}.`}
-          />
-          <Button size="lg" block loading={verify.isPending} disabled={code.length !== 6} onClick={() => verify.mutate()}>
-            Verify and turn on
-          </Button>
-        </Card>
+        <CodeEntry expiresAt={info.expiresAt} onVerified={onVerified} onExpired={onExpired} />
       </section>
+    </>
+  );
+}
+
+/** The 6-digit code that proves the authenticator has the key; turns recovery on. */
+function CodeEntry({ expiresAt, onVerified, onExpired }: { expiresAt: string; onVerified: (codes: string[]) => void; onExpired: () => void }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const until = new Date(expiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  const verify = useMutation({
+    mutationFn: () => api.post<RecoveryCodesResult>('/auth/recovery/verify', { code }),
+    onSuccess: (r) => onVerified(r.recoveryCodes),
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === 'EXPIRED') return onExpired();
+      setCode('');
+      setError(errorMessage(err));
+    },
+  });
+
+  return (
+    <Card className="flex flex-col gap-4 p-4">
+      <Field
+        label="Code from your authenticator app"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        placeholder="123456"
+        value={code}
+        onChange={(e) => {
+          setError(null);
+          setCode(digitsOnly(e.target.value));
+        }}
+        error={error ?? undefined}
+        hint={`Finish by ${until}.`}
+      />
+      <Button size="lg" block loading={verify.isPending} disabled={code.length !== 6} onClick={() => verify.mutate()}>
+        Verify and turn on
+      </Button>
+    </Card>
+  );
+}
+
+/** Back on an unfinished setup: the key is already in the authenticator, so just ask for a code. */
+function ResumeStep({
+  onVerified,
+  onExpired,
+  onShowKey,
+  onRestart,
+}: {
+  onVerified: (codes: string[]) => void;
+  onExpired: () => void;
+  onShowKey: () => void;
+  onRestart: () => void;
+}) {
+  const status = useRecoveryStatus();
+  const expiresAt = status.data?.pendingSetupExpiresAt;
+  if (!expiresAt) return null;
+  return (
+    <>
+      <p className="px-1 text-[15px] text-muted">
+        Finish setting up: enter the 6-digit code your authenticator app shows for <strong>Water Delivery</strong>.
+      </p>
+      <CodeEntry expiresAt={expiresAt} onVerified={onVerified} onExpired={onExpired} />
+      <Button variant="secondary" block onClick={onShowKey}>
+        Show the setup key again
+      </Button>
+      <Button variant="ghost" block onClick={onRestart}>
+        Start over with a new key
+      </Button>
     </>
   );
 }

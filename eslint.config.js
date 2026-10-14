@@ -16,6 +16,8 @@ export default tseslint.config(
       'api/**',
       // Plain service-worker script served as-is.
       'apps/web/public/**',
+      // Launch-video renders (/brag): scratch scripts, not app code.
+      'brag-output*/**',
     ],
   },
   js.configs.recommended,

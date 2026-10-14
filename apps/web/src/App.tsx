@@ -14,7 +14,9 @@ import { ApiError, setUnauthenticatedHandler } from './services/api';
 
 const LoginPage = lazy(() => import('./features/auth/LoginPage'));
 const SignupPage = lazy(() => import('./features/auth/SignupPage'));
+const ForgotPinPage = lazy(() => import('./features/auth/ForgotPinPage'));
 const SecurityPage = lazy(() => import('./features/settings/SecurityPage'));
+const RecoverySetupPage = lazy(() => import('./features/settings/RecoverySetupPage'));
 const MorePage = lazy(() => import('./pages/MorePage'));
 const SupplierHomePage = lazy(() => import('./pages/supplier/HomePage'));
 const NewOrderPage = lazy(() => import('./features/orders/NewOrderPage'));
@@ -134,6 +136,16 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: '/forgot-pin',
+    element: (
+      <SessionGate mode="public">
+        <Suspense fallback={<PageSpinner />}>
+          <ForgotPinPage />
+        </Suspense>
+      </SessionGate>
+    ),
+  },
+  {
     path: '/signup',
     element: (
       <SessionGate mode="public">
@@ -179,6 +191,7 @@ const router = createBrowserRouter([
           { path: 'account', element: <ByRole store={<AccountPage />} /> },
           { path: 'statement', element: <ByRole store={<StatementPage />} /> },
           { path: 'settings/security', element: <SecurityPage /> },
+          { path: 'settings/recovery', element: <RecoverySetupPage /> },
           { path: 'sync', element: <SyncPage /> },
           { path: 'settings/notifications', element: <NotificationsPage /> },
           { path: '*', element: <NotFoundPage /> },

@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import { CircleAlert } from 'lucide-react';
+import { CircleAlert, Eye, EyeOff } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 const LENGTH = 6;
@@ -13,6 +13,8 @@ interface PinFieldProps {
   autoComplete?: 'current-password' | 'new-password';
   /** Called when the 6th digit is entered — lets login submit without an extra tap. */
   onComplete?: (value: string) => void;
+  /** Adds a Show/Hide button so a new PIN can be checked before saving. */
+  revealable?: boolean;
 }
 
 /**
@@ -27,21 +29,37 @@ export function PinField({
   autoFocus,
   autoComplete = 'current-password',
   onComplete,
+  revealable,
 }: PinFieldProps) {
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
+  const [shown, setShown] = useState(false);
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-ink-2">
-        {label}
-      </label>
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor={id} className="text-sm font-medium text-ink-2">
+          {label}
+        </label>
+        {revealable ? (
+          <button
+            type="button"
+            onClick={() => setShown((v) => !v)}
+            aria-pressed={shown}
+            aria-label={shown ? `Hide ${label}` : `Show ${label}`}
+            className="-my-2 flex h-11 items-center gap-1.5 px-1 text-sm font-semibold text-brand-700"
+          >
+            {shown ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+            {shown ? 'Hide' : 'Show'}
+          </button>
+        ) : null}
+      </div>
       <div className="relative" onClick={() => inputRef.current?.focus()}>
         <input
           ref={inputRef}
           id={id}
-          type="password"
+          type={shown ? 'text' : 'password'}
           inputMode="numeric"
           pattern="[0-9]*"
           autoComplete={autoComplete}
@@ -71,7 +89,13 @@ export function PinField({
                   error ? 'border-bad' : active ? 'border-brand-600 ring-2 ring-brand-100' : 'border-line-strong',
                 )}
               >
-                {filled ? <span className="size-3 rounded-full bg-ink" /> : null}
+                {filled ? (
+                  shown ? (
+                    <span className="text-xl font-semibold text-ink tabular">{value[i]}</span>
+                  ) : (
+                    <span className="size-3 rounded-full bg-ink" />
+                  )
+                ) : null}
               </div>
             );
           })}

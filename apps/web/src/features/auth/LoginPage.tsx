@@ -110,6 +110,9 @@ export default function LoginPage() {
         <Button type="submit" size="lg" block loading={pinLogin.isPending}>
           Log in
         </Button>
+        <Link to="/forgot-pin" className="-mt-1 flex h-11 items-center justify-center text-[15px] font-semibold text-brand-700">
+          Forgot PIN?
+        </Link>
       </form>
 
       <div className="mt-auto space-y-3 pt-10 text-center text-sm text-muted">

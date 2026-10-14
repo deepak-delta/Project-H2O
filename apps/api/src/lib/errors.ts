@@ -35,3 +35,7 @@ export const rateLimited = (message = 'Too many attempts. Please wait a few minu
   new AppError(429, ERROR_CODES.RATE_LIMITED, message);
 
 export const locked = (message: string) => new AppError(423, ERROR_CODES.LOCKED, message);
+
+export const expired = (message: string) => new AppError(410, ERROR_CODES.EXPIRED, message);
+
+export const unavailable = (message: string) => new AppError(503, ERROR_CODES.UNAVAILABLE, message);

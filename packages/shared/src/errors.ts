@@ -15,6 +15,10 @@ export const ERROR_CODES = {
   CONFLICT: 'CONFLICT',
   RATE_LIMITED: 'RATE_LIMITED',
   LOCKED: 'LOCKED',
+  /** A short-lived step (PIN reset, authenticator setup) ran out of time: start again. */
+  EXPIRED: 'EXPIRED',
+  /** A feature the server isn't configured for. */
+  UNAVAILABLE: 'UNAVAILABLE',
   INTERNAL: 'INTERNAL',
 } as const;
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

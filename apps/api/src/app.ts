@@ -8,6 +8,8 @@ import { createWebPushSender, type PushSender } from './lib/push';
 import { Notifier } from './modules/notifications/notifier';
 import { registerPushRoutes } from './modules/notifications/routes';
 import { registerStaffRoutes } from './modules/staff/routes';
+import { registerPinResetRoutes } from './modules/auth/pin-reset-routes';
+import { registerRecoveryRoutes } from './modules/auth/recovery-routes';
 import { registerAuthRoutes } from './modules/auth/routes';
 import { registerCashFlowRoutes } from './modules/cashflow/routes';
 import { registerDashboardRoutes } from './modules/dashboard/routes';
@@ -71,6 +73,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.get('/api/health', () => ({ ok: true }));
   registerAuthRoutes(app, services);
+  registerRecoveryRoutes(app, services);
+  registerPinResetRoutes(app, services);
   registerProductRoutes(app, services);
   registerStoreRoutes(app, services);
   registerInventoryRoutes(app, services);

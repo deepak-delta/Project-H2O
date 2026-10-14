@@ -23,6 +23,16 @@ const envSchema = z.object({
   VAPID_PRIVATE_KEY: z.string().min(20).optional(),
   /** Contact for push services, e.g. mailto:owner@example.com */
   VAPID_SUBJECT: z.string().default('mailto:support@example.com'),
+  /**
+   * 32-byte key (base64) that encrypts authenticator-app secrets at rest. Generate with
+   * `openssl rand -base64 32`. Without it in production, PIN recovery is switched off
+   * (everything else keeps working). Development and tests use a built-in key.
+   */
+  TOTP_ENCRYPTION_KEY: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined)
+    .refine((v) => v === undefined || Buffer.from(v, 'base64').length === 32, 'TOTP_ENCRYPTION_KEY must be 32 bytes, base64-encoded'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 

@@ -152,6 +152,11 @@ model User {
   sessions          Session[]
   credentials       WebAuthnCredential[]
   pushSubscriptions PushSubscription[]
+  totp              TotpFactor?
+  recoveryCodes     RecoveryCode[]
+  assistedCodes     AssistedResetCode[]
+  pinResets         PinResetSession[]
+  authEvents        AuthEvent[]
 
   storesCreated    Store[]             @relation("StoreCreatedBy")
   productsCreated  Product[]           @relation("ProductCreatedBy")
@@ -236,6 +241,99 @@ model LoginAttempt {
 
   @@index([ip, createdAt])
   @@index([phone, createdAt])
+}
+
+// ─── PIN recovery (authenticator app) ────────────────────────────────────────
+
+/// A user's authenticator-app (TOTP) factor for PIN recovery. Secrets are AES-256-GCM encrypted
+/// with a server key and bound to the user; they never leave the server after setup.
+model TotpFactor {
+  userId                String    @id
+  /// Active secret (null until the first setup is verified).
+  secretEnc             String?
+  enabledAt             DateTime?
+  /// Highest 30-second time step already accepted: a code can't be used twice.
+  lastUsedStep          Int?
+  /// A secret being set up (or replacing the active one) until a code from it is verified.
+  pendingSecretEnc      String?
+  pendingExpiresAt      DateTime?
+  pendingFailedAttempts Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// One-time recovery codes, stored only as keyed hashes. Shown to the user once.
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
+  @@index([userId])
+}
+
+/// One-time reset code issued by an operator after verifying the person's identity out of
+/// band (for an owner who lost both the authenticator and the recovery codes).
+model AssistedResetCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  issuedBy  String
+  evidence  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
+  @@index([userId])
+}
+
+/// One "Forgot PIN" attempt. Bound to an HttpOnly cookie (only its hash is stored), short-lived
+/// and single-use. userId is null when the phone matched no account (the answer looks the same).
+model PinResetSession {
+  id             String    @id @default(cuid())
+  tokenHash      String    @unique
+  phone          String
+  userId         String?
+  ip             String
+  method         String?
+  failedAttempts Int       @default(0)
+  verifiedAt     DateTime?
+  usedAt         DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Security audit trail for logins-adjacent events (recovery setup, resets, failed attempts,
+/// recovery-code use). Never holds PINs, secrets, codes or tokens. Also used for rate limits.
+model AuthEvent {
+  id        String   @id @default(cuid())
+  type      String
+  userId    String?
+  phone     String?
+  ip        String?
+  method    String?
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([phone, type, createdAt])
+  @@index([ip, type, createdAt])
+  @@index([userId, createdAt])
 }
 
 // ─── Customers & catalogue ────────────────────────────────────────────────────

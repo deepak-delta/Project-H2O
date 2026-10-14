@@ -12,3 +12,4 @@ export * from './schemas/orders';
 export * from './schemas/reports';
 export * from './schemas/push';
 export * from './schemas/staff';
+export * from './schemas/recovery';

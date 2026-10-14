@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { changePinSchema, type PasskeySummary, type RecoveryCodesResult } from '@wd/shared';
-import { KeyRound, ScanFace, ShieldCheck, Smartphone } from 'lucide-react';
+import { ScanFace, ShieldCheck, Smartphone } from 'lucide-react';
 import { Link } from 'react-router';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -196,12 +196,7 @@ function PinRecoverySection() {
       ) : !data?.available ? (
         <Card className="px-4 py-3.5 text-sm text-muted">PIN recovery isn't available yet.</Card>
       ) : !data.enabled ? (
-        <Card className="flex flex-col gap-3 p-4">
-          <p className="flex gap-3 text-[15px] text-ink-2">
-            <KeyRound className="mt-0.5 size-5 shrink-0 text-brand-700" aria-hidden />
-            Forgot your PIN one day? With an authenticator app (Google Authenticator, Microsoft Authenticator or Authy) you can reset it
-            yourself. No SMS, no cost.
-          </p>
+        <Card className="p-4">
           <Link to="/settings/recovery" className="flex h-11 items-center justify-center rounded-xl bg-brand-700 px-4 font-semibold text-white">
             Set up PIN recovery
           </Link>

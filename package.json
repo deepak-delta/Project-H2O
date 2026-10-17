@@ -20,7 +20,8 @@
     "db:migrate": "npm run db:migrate -w @wd/api",
     "db:seed": "npm run db:seed -w @wd/api",
     "e2e": "playwright test",
-    "docs:guide": "playwright test -c playwright.docs.config.ts"
+    "docs:guide": "playwright test -c playwright.docs.config.ts",
+    "docs:test-plan": "node docs/testing/build-test-plan.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

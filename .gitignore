@@ -22,3 +22,6 @@ docs/user-guide/screenshots/
 
 # Launch-video output (/brag)
 brag-output*/
+
+# Intermediate file of npm run docs:test-plan
+docs/testing/test-plan.html

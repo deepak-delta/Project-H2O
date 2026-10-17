@@ -144,6 +144,8 @@ model User {
   failedPinAttempts Int       @default(0)
   lockedUntil       DateTime?
   active            Boolean   @default(true)
+  /// Deleted staff: kept (their name stays on the work they recorded) but hidden and unusable.
+  deletedAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

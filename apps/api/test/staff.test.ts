@@ -1,15 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { PushMessage, PushResult, PushSender, PushTarget } from '../src/lib/push';
+import type { PushMessage, PushOutcome, PushSender, PushTarget } from '../src/lib/push';
 import { Client, closeTestContext, createTestContext, resetDb, signupSupplier, type TestContext } from './helpers';
 import { createStore, sale, setupBusiness, storeUserClient, type Business } from './fixtures';
 
 class FakeSender implements PushSender {
   readonly publicKey = 'BFakePublicKeyForTests000000000000000000000';
   sent: { endpoint: string; message: PushMessage }[] = [];
-  send(target: PushTarget, message: PushMessage): Promise<PushResult> {
+  send(target: PushTarget, message: PushMessage): Promise<PushOutcome> {
     this.sent.push({ endpoint: target.endpoint, message });
-    return Promise.resolve('ok');
+    return Promise.resolve({ result: 'ok' });
   }
 }
 
@@ -259,6 +259,40 @@ describe('turning staff off', () => {
     const other = await signupSupplier(ctx.app, { phone: '9555500011' });
     expect((await other.client.get(`/api/staff/${staffId}/today`)).statusCode).toBe(404);
     expect((await other.client.patch(`/api/staff/${staffId}`, { active: false })).statusCode).toBe(404);
+  });
+});
+
+describe('deleting staff', () => {
+  it('logs them out for good, frees the phone, gives back their orders, and keeps their past work', async () => {
+    // Raju delivers one order today and has another waiting.
+    const done = await storeOrder(4, staffId);
+    expect((await deliver(staff, done, 4)).statusCode).toBe(201);
+    const waiting = await storeOrder(6, staffId);
+
+    expect((await biz.client.delete(`/api/staff/${staffId}`)).statusCode).toBe(204);
+
+    expect((await staff.get('/api/auth/me')).statusCode).toBe(401);
+    expect((await new Client(ctx.app).post('/api/auth/login', { phone: '9600000001', pin: '246810' })).statusCode).toBe(401);
+    expect((await biz.client.get('/api/staff')).json()).toEqual([]);
+    expect((await biz.client.get(`/api/staff/${staffId}/today`)).statusCode).toBe(404);
+    expect((await biz.client.get(`/api/orders/${waiting}`)).json().assignedTo).toBeNull();
+    // The delivery they made is still theirs.
+    const delivery = await ctx.db.delivery.findFirstOrThrow({ where: { orderId: done }, include: { deliveredBy: { select: { name: true } } } });
+    expect(delivery.deliveredBy.name).toBe('Raju');
+    expect(await ctx.db.auditLog.count({ where: { action: 'STAFF_DELETED', entityId: staffId } })).toBe(1);
+
+    // The number can be given to someone new.
+    expect((await biz.client.post('/api/staff', { name: 'Suresh', phone: '9600000001', pin: '135790' })).statusCode).toBe(201);
+    // And the deleted person can't be given orders.
+    const order = await storeOrder(2);
+    expect((await biz.client.post(`/api/orders/${order}/assign`, { staffId })).statusCode).toBeGreaterThanOrEqual(400);
+  });
+
+  it('only the owner of that business can delete', async () => {
+    const other = await signupSupplier(ctx.app);
+    expect((await other.client.delete(`/api/staff/${staffId}`)).statusCode).toBe(404);
+    expect((await staff.delete(`/api/staff/${staffId}`)).statusCode).toBe(403);
+    expect((await staff.get('/api/auth/me')).statusCode).toBe(200);
   });
 });
 

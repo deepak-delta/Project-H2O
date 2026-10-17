@@ -71,6 +71,44 @@ export async function enablePush(): Promise<PushState> {
   return 'on';
 }
 
+const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+let syncing: Promise<void> | null = null;
+
+/**
+ * Run when the app opens. If notifications are on for this phone, make sure the server still
+ * has it, for the person logged in now, and with the server's current keys. The server drops
+ * subscriptions the push service rejects, and a phone can be shared; without this the screen
+ * says "On" while nothing arrives.
+ */
+export function syncPush(): Promise<void> {
+  syncing ??= resync()
+    .catch(() => undefined)
+    .finally(() => {
+      syncing = null;
+    });
+  return syncing;
+}
+
+async function resync(): Promise<void> {
+  if (!supported() || Notification.permission !== 'granted') return;
+  if (isIos() && !isInstalled()) return;
+  const reg = await registration();
+  let sub = await reg?.pushManager.getSubscription();
+  if (!reg || !sub) return;
+  const config = await api.get<PushConfig>('/push/config');
+  if (!config.enabled || !config.publicKey) return;
+  const key = keyToBytes(config.publicKey);
+  const current = sub.options.applicationServerKey;
+  if (!current || !sameBytes(new Uint8Array(current), key)) {
+    // Made with old server keys: it can never work again. Permission is already granted, so a
+    // fresh subscription needs no prompt.
+    await sub.unsubscribe().catch(() => undefined);
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  }
+  await api.post('/push/subscribe', sub.toJSON());
+}
+
 /** Stops notifications on this device (also used on logout so a shared phone goes quiet). */
 export async function disablePush(): Promise<void> {
   const reg = await registration();

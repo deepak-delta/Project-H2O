@@ -98,10 +98,12 @@ function OrderView({ order: o }: { order: OrderDto }) {
             {o.items.map((i) => (
               <ListRow
                 key={i.productId}
-                title={`${i.quantity} × ${i.productName}`}
+                // Before delivery: what was ordered. After: what was actually delivered (the bill).
+                title={`${open || o.status === 'CANCELLED' ? i.quantity : i.delivered} × ${i.productName}`}
                 subtitle={[
                   `${format(i.unitPrice)} each`,
-                  i.delivered > 0 && i.delivered !== i.quantity ? `${i.delivered} delivered` : null,
+                  open && i.delivered > 0 ? `${i.delivered} delivered so far` : null,
+                  !open && o.status !== 'CANCELLED' && i.delivered !== i.quantity ? `ordered ${i.quantity}` : null,
                   i.emptyCollected ? `${i.emptyCollected} empties back` : null,
                   i.damagedCollected ? `${i.damagedCollected} damaged back (${format(i.damageCharge)})` : null,
                 ]

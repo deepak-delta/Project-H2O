@@ -103,6 +103,7 @@ export const orderListInclude = {
   store: { select: { name: true } },
   assignedTo: { select: { id: true, name: true } },
   items: { select: { quantity: true } },
+  deliveries: { select: { items: { select: { deliveredQty: true } } } },
   payments: { select: { amount: true, reversedAt: true } },
 } as const satisfies Prisma.OrderInclude;
 
@@ -123,7 +124,11 @@ export function toOrderListItem(o: OrderListRow): OrderListItem {
     total: decToString(o.total),
     amountPaid: fromMinor(paidMinor),
     paymentStatus: paymentStatusFor(totalMinor, paidMinor),
-    totalQuantity: o.items.reduce((sum, i) => sum + i.quantity, 0),
+    // Once delivered, the cans actually handed over (the bill is for those), not the ordered count.
+    totalQuantity:
+      o.deliveries.length > 0 && o.status !== 'CANCELLED'
+        ? o.deliveries.reduce((sum, d) => sum + d.items.reduce((s, i) => s + i.deliveredQty, 0), 0)
+        : o.items.reduce((sum, i) => sum + i.quantity, 0),
     assignedTo: o.assignedTo,
   };
 }

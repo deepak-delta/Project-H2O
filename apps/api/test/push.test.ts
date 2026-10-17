@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { PushMessage, PushResult, PushSender, PushTarget } from '../src/lib/push';
+import type { PushMessage, PushOutcome, PushResult, PushSender, PushTarget } from '../src/lib/push';
 import { Client, closeTestContext, createTestContext, resetDb, signupSupplier, type TestContext } from './helpers';
 import { createProduct, sale, setupBusiness, storeUserClient, type Business } from './fixtures';
 
@@ -10,10 +10,10 @@ class FakeSender implements PushSender {
   responses = new Map<string, PushResult>();
   hang = false;
 
-  send(target: PushTarget, message: PushMessage): Promise<PushResult> {
+  send(target: PushTarget, message: PushMessage): Promise<PushOutcome> {
     if (this.hang) return new Promise(() => undefined);
     this.sent.push({ endpoint: target.endpoint, message });
-    return Promise.resolve(this.responses.get(target.endpoint) ?? 'ok');
+    return Promise.resolve({ result: this.responses.get(target.endpoint) ?? 'ok' });
   }
 
   to(endpoint: string): PushMessage[] {
@@ -68,7 +68,14 @@ describe('subscriptions', () => {
   });
 
   it('sends a test notification to my own devices', async () => {
-    expect((await biz.client.post('/api/push/test')).json()).toEqual({ sent: 1 });
+    expect((await biz.client.post('/api/push/test')).json()).toEqual({ devices: 1, delivered: 1, failed: 0, sent: 1 });
+    // A phone the push service rejects is reported as failed and dropped, so the app re-registers it.
+    sender.responses.set(SUPPLIER_PHONE, 'gone');
+    expect((await biz.client.post('/api/push/test')).json()).toEqual({ devices: 1, delivered: 0, failed: 1, sent: 0 });
+    expect((await biz.client.post('/api/push/test')).json()).toEqual({ devices: 0, delivered: 0, failed: 0, sent: 0 });
+    sender.responses.delete(SUPPLIER_PHONE);
+    await subscribe(biz.client, SUPPLIER_PHONE);
+    expect((await biz.client.post('/api/push/test')).json()).toMatchObject({ devices: 1, delivered: 1 });
     expect(sender.to(SUPPLIER_PHONE)[0]?.title).toBe('Notifications are on');
     expect(sender.to(STORE_PHONE)).toEqual([]);
   });

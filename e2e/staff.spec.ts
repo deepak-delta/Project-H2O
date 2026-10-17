@@ -169,3 +169,25 @@ test('owner adds an "Other" client, then creates an order for later and gives it
   expect(after.assignedOrders).toEqual([expect.objectContaining({ storeName: 'Tech Park', totalQuantity: 2 })]);
   await staffSide.close();
 });
+
+test('the owner deletes a member of staff; their past work stays', async ({ page }) => {
+  const { storeId, productId } = await setupSupplier(page.request);
+  const staffPhone = randomPhone();
+  const staff = await api<{ id: string }>(page.request, 'POST', '/api/staff', { name: 'Raju Kumar', phone: staffPhone, pin: '246810' });
+  const order = await api<{ id: string }>(page.request, 'POST', '/api/orders', { clientId: crypto.randomUUID(), storeId, items: [{ productId, quantity: 3 }], assignedToId: staff.id });
+  const assertNoErrors = watchForErrors(page);
+
+  await page.goto(`/staff/${staff.id}`);
+  await page.getByRole('button', { name: 'Delete Raju Kumar' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Their past deliveries, payments and expenses stay in your records');
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page).toHaveURL(/\/staff$/);
+  await expect(page.getByText('Raju Kumar deleted.')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Raju Kumar/ })).toHaveCount(0);
+
+  // Their order came back unassigned, and the number is free for someone new.
+  const back = await api<{ assignedTo: unknown }>(page.request, 'GET', `/api/orders/${order.id}`);
+  expect(back.assignedTo).toBeNull();
+  await api(page.request, 'POST', '/api/staff', { name: 'Suresh', phone: staffPhone, pin: '135790' });
+  assertNoErrors();
+});

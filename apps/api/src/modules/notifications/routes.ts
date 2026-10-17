@@ -40,12 +40,12 @@ export function registerPushRoutes(app: FastifyInstance, { db, notifier }: Servi
   app.post('/api/push/test', async (req) => {
     const auth = requireAuth(req);
     if (!notifier.enabled) throw validationError('Notifications are not set up on the server yet.');
-    const sent = await notifier.toUser(auth.userId, {
+    const report = await notifier.testUser(auth.userId, {
       title: 'Notifications are on',
       body: "You'll be told about orders, deliveries and payments here.",
       url: '/',
       tag: 'test',
     });
-    return { sent };
+    return { ...report, sent: report.delivered };
   });
 }

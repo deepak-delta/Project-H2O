@@ -77,6 +77,19 @@ describe('delivering an order', () => {
     expect(await ledgerNetForOrder(order.id)).toBe('500.00');
   });
 
+  it('delivering more than ordered: bill, list and counts all show what was delivered', async () => {
+    const order = await placeOrder(10);
+    const res = await deliver(order.id, 15);
+    expect(res.statusCode).toBe(201);
+    expect(res.json().order).toMatchObject({ status: 'DELIVERED', total: '750.00' });
+    expect(res.json().order.items[0]).toMatchObject({ quantity: 10, delivered: 15 });
+    const listed = (await biz.client.get('/api/orders')).json().items.find((o: { id: string }) => o.id === order.id);
+    expect(listed).toMatchObject({ totalQuantity: 15, total: '750.00' });
+    // Before delivery the list shows what was ordered.
+    const next = await placeOrder(8);
+    expect((await biz.client.get('/api/orders')).json().items.find((o: { id: string }) => o.id === next.id).totalQuantity).toBe(8);
+  });
+
   it('partial delivery bills only what arrived, then completes', async () => {
     const order = await placeOrder(10);
     const first = await deliver(order.id, 6);

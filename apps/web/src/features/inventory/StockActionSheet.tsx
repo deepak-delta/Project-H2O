@@ -22,26 +22,43 @@ interface Props {
   action: StockAction | null;
   product: StockSummary;
   onClose: () => void;
+  /** Pre-filled amount (e.g. the refill that brings filled cans back to zero). */
+  initialQuantity?: number;
+  initialReason?: string;
 }
 
 /** Every warehouse change in one sheet; each records an inventory movement, never a silent edit. */
-export function StockActionSheet({ action, product, onClose }: Props) {
+export function StockActionSheet({ action, product, onClose, initialQuantity, initialReason }: Props) {
   return (
     <Sheet open={action !== null} onClose={onClose} title={action ? `${TITLES[action]} · ${product.productName}` : ''}>
-      {action ? <StockActionForm key={action} action={action} product={product} onDone={onClose} /> : null}
+      {action ? (
+        <StockActionForm key={action} action={action} product={product} onDone={onClose} initialQuantity={initialQuantity} initialReason={initialReason} />
+      ) : null}
     </Sheet>
   );
 }
 
-function StockActionForm({ action, product, onDone }: { action: StockAction; product: StockSummary; onDone: () => void }) {
+function StockActionForm({
+  action,
+  product,
+  onDone,
+  initialQuantity = 0,
+  initialReason = '',
+}: {
+  action: StockAction;
+  product: StockSummary;
+  onDone: () => void;
+  initialQuantity?: number;
+  initialReason?: string;
+}) {
   const move = useStockMovement();
   const [clientId] = useState(() => crypto.randomUUID());
   const [filled, setFilled] = useState(action === 'COUNT' ? Math.max(product.filled, 0) : 0);
   const [empty, setEmpty] = useState(action === 'COUNT' ? Math.max(product.empty, 0) : 0);
-  const [quantity, setQuantity] = useState(0);
+  const [quantity, setQuantity] = useState(initialQuantity);
   const [from, setFrom] = useState<'FILLED' | 'EMPTY'>('EMPTY');
   const [kind, setKind] = useState<'DAMAGE' | 'LOSS'>('DAMAGE');
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState(initialReason);
   const [error, setError] = useState<string | null>(null);
   // Count corrections overwrite what the app believes, so they get a second look first.
   const [confirming, setConfirming] = useState(false);

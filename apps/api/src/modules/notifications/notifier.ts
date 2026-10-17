@@ -1,9 +1,17 @@
+import { waitUntil } from '@vercel/functions';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../../lib/db';
 import type { PushMessage, PushSender } from '../../lib/push';
 
 /** Never let a slow push service hold up the response for a sale or payment. */
 const SEND_BUDGET_MS = 2500;
+
+export interface PushReport {
+  /** Phones registered for these users. */
+  devices: number;
+  delivered: number;
+  failed: number;
+}
 
 /**
  * Sends notifications after the business action has been saved. Failures are logged and
@@ -39,30 +47,56 @@ export class Notifier {
     return this.toUsers({ storeId, role: 'STORE', active: true }, message);
   }
 
+  /** "Send a test": waits for every phone's answer, so the screen can say what really happened. */
+  async testUser(userId: string, message: PushMessage): Promise<PushReport> {
+    return this.deliver({ id: userId, active: true }, message);
+  }
+
   private async toUsers(
     where: { id?: string; supplierId?: string; storeId?: string; role?: 'SUPPLIER' | 'STORE'; active: true },
     message: PushMessage,
   ): Promise<number> {
+    const work = this.deliver(where, message).then((r) => r.delivered);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), SEND_BUDGET_MS);
+    });
+    const first = await Promise.race([work, late]);
+    clearTimeout(timer);
+    if (first !== null) return first;
+    // Slow push service: answer the user now, but keep the serverless function alive until the
+    // notifications have actually gone out (otherwise they're cut off when it's frozen).
+    waitUntil(work.catch(() => 0));
+    return 0;
+  }
+
+  private async deliver(
+    where: { id?: string; supplierId?: string; storeId?: string; role?: 'SUPPLIER' | 'STORE'; active: true },
+    message: PushMessage,
+  ): Promise<PushReport> {
     const sender = this.sender;
-    if (!sender) return 0;
+    const report: PushReport = { devices: 0, delivered: 0, failed: 0 };
+    if (!sender) return report;
     try {
       const subs = await this.db.pushSubscription.findMany({ where: { user: where } });
-      if (subs.length === 0) return 0;
-
-      const work = Promise.all(
+      report.devices = subs.length;
+      await Promise.all(
         subs.map(async (s) => {
-          const result = await sender.send(s, message);
+          const { result, status } = await sender.send(s, message);
+          if (result === 'ok') {
+            report.delivered += 1;
+            await this.db.pushSubscription.update({ where: { id: s.id }, data: { lastUsedAt: new Date() } }).catch(() => undefined);
+            return;
+          }
+          report.failed += 1;
+          // Which push service and why, never the endpoint or keys.
+          this.log.warn({ status, service: new URL(s.endpoint).host, removed: result === 'gone' }, 'push not delivered');
           if (result === 'gone') await this.db.pushSubscription.deleteMany({ where: { id: s.id } });
-          else if (result === 'ok') await this.db.pushSubscription.update({ where: { id: s.id }, data: { lastUsedAt: new Date() } }).catch(() => undefined);
-          return result === 'ok' ? 1 : 0;
         }),
-      ).then((r) => r.reduce<number>((a, b) => a + b, 0));
-
-      const timeout = new Promise<number>((resolve) => setTimeout(() => resolve(0), SEND_BUDGET_MS));
-      return await Promise.race([work, timeout]);
+      );
     } catch (err) {
       this.log.warn({ err }, 'push notification failed');
-      return 0;
     }
+    return report;
   }
 }

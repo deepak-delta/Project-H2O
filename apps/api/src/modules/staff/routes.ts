@@ -36,7 +36,7 @@ async function cutOff(tx: Tx, userId: string): Promise<void> {
 }
 
 export function registerStaffRoutes(app: FastifyInstance, { db, env }: Services): void {
-  const findStaff = (supplierId: string, id: string) => db.user.findFirst({ where: { id, supplierId, role: 'STAFF' } });
+  const findStaff = (supplierId: string, id: string) => db.user.findFirst({ where: { id, supplierId, role: 'STAFF', deletedAt: null } });
 
   /** A member of staff's own day. Starts empty every morning. */
   app.get('/api/staff/today', async (req) => {
@@ -49,7 +49,7 @@ export function registerStaffRoutes(app: FastifyInstance, { db, env }: Services)
   app.get('/api/staff', async (req) => {
     const auth = requireSupplier(req);
     const [staff, { timezone }] = await Promise.all([
-      db.user.findMany({ where: { supplierId: auth.supplierId, role: 'STAFF' }, orderBy: [{ active: 'desc' }, { name: 'asc' }] }),
+      db.user.findMany({ where: { supplierId: auth.supplierId, role: 'STAFF', deletedAt: null }, orderBy: [{ active: 'desc' }, { name: 'asc' }] }),
       getBusinessSettings(db, auth.supplierId),
     ]);
     const day = zonedDayRange(timezone);
@@ -110,6 +110,43 @@ export function registerStaffRoutes(app: FastifyInstance, { db, env }: Services)
       return updated;
     });
     return toStaffDto(db, auth.supplierId, user);
+  });
+
+  /**
+   * Delete a member of staff. Their deliveries, payments and expenses stay in the books under
+   * their name, so the row is kept, but they can never log in again, disappear from the staff
+   * list, give back any open orders, and their phone number is freed for someone else.
+   */
+  app.delete('/api/staff/:id', async (req, reply) => {
+    const auth = requireSupplier(req);
+    const { id } = parse(idParams, req.params);
+    const staff = await findStaff(auth.supplierId, id);
+    if (!staff) throw notFound('Staff member');
+    await db.$transaction(async (tx) => {
+      await cutOff(tx, id);
+      await tx.order.updateMany({
+        where: { supplierId: auth.supplierId, assignedToId: id, status: { in: ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY', 'PARTIALLY_DELIVERED'] } },
+        data: { assignedToId: null },
+      });
+      await tx.webAuthnCredential.deleteMany({ where: { userId: id } });
+      await tx.totpFactor.deleteMany({ where: { userId: id } });
+      await tx.recoveryCode.deleteMany({ where: { userId: id } });
+      await tx.pinResetSession.updateMany({ where: { userId: id, usedAt: null }, data: { usedAt: new Date() } });
+      await tx.user.update({
+        where: { id },
+        // The phone is unique: free it, keeping the old number only in the audit entry.
+        data: { active: false, deletedAt: new Date(), phone: `deleted:${id}` },
+      });
+      await audit(tx, {
+        supplierId: auth.supplierId,
+        actorId: auth.userId,
+        action: 'STAFF_DELETED',
+        entity: 'User',
+        entityId: id,
+        before: { name: staff.name, phone: staff.phone, active: staff.active },
+      });
+    });
+    return reply.status(204).send();
   });
 
   /** New PIN: signs them out everywhere. */

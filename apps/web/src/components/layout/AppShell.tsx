@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router';
 
 import { useSession } from '../../features/auth/session';
+import { syncPush } from '../../features/notifications/push';
 import { PageSpinner } from '../ui/Spinner';
 import { useSyncEngine } from '../../offline/engine';
 import { useLiveUpdates } from '../../offline/useLiveUpdates';
@@ -24,6 +25,19 @@ export function AppShell({ nav = true }: { nav?: boolean }) {
   useWarmCache(user.role);
   // The owner sees staff and store activity within seconds.
   useLiveUpdates(user.role === 'SUPPLIER');
+  // Keep this phone registered for notifications (on open, and on return after an hour away).
+  useEffect(() => {
+    let last = Date.now();
+    void syncPush();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - last > 60 * 60 * 1000) {
+        last = Date.now();
+        void syncPush();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [user.id]);
   const scroller = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
   // Each screen starts at the top.

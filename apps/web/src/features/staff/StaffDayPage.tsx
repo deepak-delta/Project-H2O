@@ -1,6 +1,6 @@
 import { formatPhone } from '@wd/shared';
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { ErrorRetry } from '../../components/ui/LoadMore';
@@ -9,7 +9,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { errorMessage } from '../../services/api';
 import { toast } from '../../stores/toast';
 import { randomPin } from '../../utils/pin';
-import { useResetStaffPin, useStaffDay, useStaffList, useUpdateStaff } from './api';
+import { useDeleteStaff, useResetStaffPin, useStaffDay, useStaffList, useUpdateStaff } from './api';
 import { PinInput, ShareLogin } from './StaffPage';
 import { StaffDay } from './StaffDay';
 
@@ -22,6 +22,9 @@ export default function StaffDayPage() {
   const update = useUpdateStaff(id);
   const [confirmOff, setConfirmOff] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const remove = useDeleteStaff(id);
+  const navigate = useNavigate();
 
   const setActive = (active: boolean) =>
     update.mutate(
@@ -63,6 +66,11 @@ export default function StaffDayPage() {
             </Button>
           )
         ) : null}
+        {member ? (
+          <Button variant="dangerGhost" block onClick={() => setConfirmDelete(true)}>
+            Delete {member.name}
+          </Button>
+        ) : null}
       </PageBody>
 
       <ConfirmSheet
@@ -73,6 +81,23 @@ export default function StaffDayPage() {
         loading={update.isPending}
         onClose={() => setConfirmOff(false)}
         onConfirm={() => setActive(false)}
+      />
+      <ConfirmSheet
+        open={confirmDelete}
+        title={`Delete ${member?.name ?? 'staff'}?`}
+        message="They're logged out and can never log in again, and orders you gave them come back to you. Their past deliveries, payments and expenses stay in your records under their name. Their phone number can be used for someone new."
+        confirmLabel="Delete"
+        loading={remove.isPending}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() =>
+          remove.mutate(undefined, {
+            onSuccess: () => {
+              toast.success(`${member?.name ?? 'Staff member'} deleted.`);
+              void navigate('/staff', { replace: true });
+            },
+            onError: (err) => toast.error(errorMessage(err)),
+          })
+        }
       />
       <Sheet open={resetting} onClose={() => setResetting(false)} title="Reset PIN">
         {resetting && member ? <ResetPinForm id={id} name={member.name} phone={member.phone} onDone={() => setResetting(false)} /> : null}

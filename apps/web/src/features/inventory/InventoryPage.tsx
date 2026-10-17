@@ -3,6 +3,7 @@ import { Boxes, PackagePlus, RefreshCw, ScanLine, TriangleAlert } from 'lucide-r
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
+import { Button } from '../../components/ui/Button';
 import { Card, ListCard, ListRow, SectionTitle } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorRetry, LoadMore } from '../../components/ui/LoadMore';
@@ -42,7 +43,7 @@ export default function InventoryPage() {
   const tz = useTimezone();
   const today = zonedDateKey(new Date(), tz);
   const movements = useMovements({ date: today });
-  const [sheet, setSheet] = useState<{ action: StockAction; product: StockSummary } | null>(null);
+  const [sheet, setSheet] = useState<{ action: StockAction; product: StockSummary; quantity?: number; reason?: string } | null>(null);
   const moves = movements.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
@@ -75,10 +76,12 @@ export default function InventoryPage() {
                 {p.isReturnable ? <Stat label="Damaged" value={p.damaged} /> : null}
               </div>
               {p.filled < 0 || p.empty < 0 ? (
-                <p className="mt-3 flex items-center gap-1.5 text-sm text-bad">
-                  <TriangleAlert className="size-4 shrink-0" aria-hidden />
-                  Below zero. Do a count and use “Correct count”.
-                </p>
+                <BelowZero
+                  product={p}
+                  onRefill={(quantity) => setSheet({ action: 'REFILL', product: p, quantity, reason: 'Refills not recorded earlier' })}
+                  onAddStock={() => setSheet({ action: 'PURCHASE', product: p })}
+                  onCount={() => setSheet({ action: 'COUNT', product: p })}
+                />
               ) : null}
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <ActionChip icon={<PackagePlus className="size-4" />} label="Add stock" onClick={() => setSheet({ action: 'PURCHASE', product: p })} />
@@ -137,7 +140,9 @@ export default function InventoryPage() {
         </section>
       </PageBody>
 
-      {sheet ? <StockActionSheet action={sheet.action} product={sheet.product} onClose={() => setSheet(null)} /> : null}
+      {sheet ? (
+        <StockActionSheet action={sheet.action} product={sheet.product} initialQuantity={sheet.quantity} initialReason={sheet.reason} onClose={() => setSheet(null)} />
+      ) : null}
     </>
   );
 }
@@ -152,5 +157,53 @@ function ActionChip({ icon, label, onClick }: { icon: ReactNode; label: string; 
       <span className="text-brand-700">{icon}</span>
       {label}
     </button>
+  );
+}
+
+/**
+ * Stock below zero means the app saw more go out than come in, almost always refills or the
+ * starting stock not being recorded. Say so plainly and offer the fix in one tap.
+ */
+function BelowZero({
+  product,
+  onRefill,
+  onAddStock,
+  onCount,
+}: {
+  product: StockSummary;
+  onRefill: (quantity: number) => void;
+  onAddStock: () => void;
+  onCount: () => void;
+}) {
+  const short = Math.max(0, -product.filled);
+  const refill = product.isReturnable ? Math.min(short, Math.max(0, product.empty)) : 0;
+  return (
+    <div className="mt-3 rounded-xl border border-warn/30 bg-warn-bg p-3.5 text-sm text-warn">
+      <p className="flex gap-2 font-semibold">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+        {product.filled < 0 ? `${short} more filled cans went out than the app knows you had.` : 'Empty cans are below zero.'}
+      </p>
+      <p className="mt-1 pl-6 text-ink-2">
+        {product.filled < 0
+          ? refill > 0
+            ? 'Usually that is empties you refilled at the plant without recording it here. Record the refill and the numbers add up again.'
+            : 'Usually that is the starting stock or new cans not entered yet. Add them, or count your cans and correct the numbers.'
+          : 'More empties were refilled or written off than came back. Count your cans and correct the numbers.'}
+      </p>
+      <div className="mt-3 flex flex-col gap-2 pl-6">
+        {refill > 0 ? (
+          <Button size="md" onClick={() => onRefill(refill)}>
+            Record refill of {refill} empties
+          </Button>
+        ) : product.filled < 0 ? (
+          <Button size="md" onClick={onAddStock}>
+            Add stock
+          </Button>
+        ) : null}
+        <Button size="md" variant="secondary" onClick={onCount}>
+          Count and correct
+        </Button>
+      </div>
+    </div>
   );
 }

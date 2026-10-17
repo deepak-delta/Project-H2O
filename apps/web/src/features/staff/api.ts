@@ -37,6 +37,18 @@ export function useUpdateStaff(id: string) {
   });
 }
 
+/** Delete a member of staff: their past work stays, they can't log in, their orders come back. */
+export function useDeleteStaff(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete<void>(`/staff/${id}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.staffRoot });
+      void queryClient.invalidateQueries({ queryKey: qk.ordersRoot });
+    },
+  });
+}
+
 export function useResetStaffPin(id: string) {
   return useMutation({ mutationFn: (pin: string) => api.put<StaffDto>(`/staff/${id}/pin`, { pin }) });
 }

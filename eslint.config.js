@@ -12,6 +12,8 @@ export default tseslint.config(
       'apps/api/src/generated/**',
       'apps/api/dist/**',
       'scripts/**',
+      // Document build scripts (like scripts/): plain Node, not app code.
+      'docs/testing/**',
       '**/*.config.{js,ts}',
       'api/**',
       // Plain service-worker script served as-is.

@@ -14,9 +14,15 @@ import { disablePush, enablePush, getPushState, syncPush, type PushState } from 
 const pushStateKey = ['push-state'] as const;
 
 const WHAT_YOU_GET = {
-  SUPPLIER: ['New orders from clients', 'Orders a client cancels', 'When filled cans are running low'],
+  SUPPLIER: [
+    'New orders from clients',
+    'Deliveries made by your staff',
+    "Each morning's regular deliveries",
+    'Orders a client cancels',
+    'When filled cans are running low',
+  ],
   STORE: ['Order accepted and on the way', 'Deliveries, with your new balance', 'Payments received', 'Payment reminders'],
-  STAFF: ['Orders the owner gives you to deliver'],
+  STAFF: ['Orders the owner gives you to deliver', 'Your regular deliveries each morning'],
 } as const;
 
 const android = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);

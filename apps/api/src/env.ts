@@ -24,6 +24,14 @@ const envSchema = z.object({
   /** Contact for push services, e.g. mailto:owner@example.com */
   VAPID_SUBJECT: z.string().default('mailto:support@example.com'),
   /**
+   * Firebase service-account key (base64 of the downloaded JSON) for notifications to the
+   * native Android app. Without it, only web push is used.
+   */
+  FCM_SERVICE_ACCOUNT_JSON: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined),
+  /**
    * 32-byte key (base64) that encrypts authenticator-app secrets at rest. Generate with
    * `openssl rand -base64 32`. Without it in production, PIN recovery is switched off
    * (everything else keeps working). Development and tests use a built-in key.

@@ -1,4 +1,5 @@
 import type { PushConfig } from '@wd/shared';
+import { isNative } from '../../native/platform';
 import { isInstalled, isIos } from '../../pwa/platform';
 import { api } from '../../services/api';
 
@@ -11,6 +12,9 @@ import { api } from '../../services/api';
  *  - off / on
  */
 export type PushState = 'unsupported' | 'needs-install' | 'server-off' | 'blocked' | 'off' | 'on';
+
+/** Inside the native Android app, notifications go through Firebase instead of web push. */
+const native = () => import('./native-push');
 
 function supported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -30,6 +34,7 @@ let prepared: { reg: ServiceWorkerRegistration; publicKey: string } | null = nul
 
 export async function getPushState(): Promise<PushState> {
   prepared = null;
+  if (isNative()) return (await native()).nativePushState();
   if (isIos() && !isInstalled()) return 'needs-install';
   if (!supported()) return 'unsupported';
   const config = await api.get<PushConfig>('/push/config');
@@ -55,6 +60,7 @@ function keyToBytes(base64Url: string): Uint8Array<ArrayBuffer> {
  * subscribe() itself shows the permission prompt (Safari and Chrome alike).
  */
 export async function enablePush(): Promise<PushState> {
+  if (isNative()) return (await native()).enableNativePush();
   if (!prepared) return getPushState();
   const { reg, publicKey } = prepared;
   let sub: PushSubscription;
@@ -91,6 +97,7 @@ export function syncPush(): Promise<void> {
 }
 
 async function resync(): Promise<void> {
+  if (isNative()) return (await native()).syncNativePush();
   if (!supported() || Notification.permission !== 'granted') return;
   if (isIos() && !isInstalled()) return;
   const reg = await registration();
@@ -111,6 +118,7 @@ async function resync(): Promise<void> {
 
 /** Stops notifications on this device (also used on logout so a shared phone goes quiet). */
 export async function disablePush(): Promise<void> {
+  if (isNative()) return (await native()).disableNativePush();
   const reg = await registration();
   const sub = await reg?.pushManager.getSubscription();
   if (!sub) return;

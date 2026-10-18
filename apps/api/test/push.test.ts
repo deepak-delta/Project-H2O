@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { PushMessage, PushOutcome, PushResult, PushSender, PushTarget } from '../src/lib/push';
+import type { NativePushSender, PushMessage, PushOutcome, PushResult, PushSender, PushTarget } from '../src/lib/push';
 import { Client, closeTestContext, createTestContext, resetDb, signupSupplier, type TestContext } from './helpers';
 import { createProduct, sale, setupBusiness, storeUserClient, type Business } from './fixtures';
 
@@ -21,7 +21,23 @@ class FakeSender implements PushSender {
   }
 }
 
+/** Same idea for the native app's FCM tokens. */
+class FakeNativeSender implements NativePushSender {
+  sent: { token: string; message: PushMessage }[] = [];
+  responses = new Map<string, PushResult>();
+
+  send(token: string, message: PushMessage): Promise<PushOutcome> {
+    this.sent.push({ token, message });
+    return Promise.resolve({ result: this.responses.get(token) ?? 'ok' });
+  }
+
+  to(token: string): PushMessage[] {
+    return this.sent.filter((s) => s.token === token).map((s) => s.message);
+  }
+}
+
 const sender = new FakeSender();
+const nativeSender = new FakeNativeSender();
 let ctx: TestContext;
 let biz: Business;
 let store: Client;
@@ -32,7 +48,7 @@ const subscribe = (client: Client, endpoint: string) =>
   client.post('/api/push/subscribe', { endpoint, keys: { p256dh: 'BKeyKeyKeyKeyKeyKeyKey', auth: 'authauthauth' } });
 
 beforeAll(async () => {
-  ctx = await createTestContext({}, { pushSender: sender });
+  ctx = await createTestContext({}, { pushSender: sender, nativePushSender: nativeSender });
 });
 afterAll(async () => closeTestContext(ctx));
 beforeEach(async () => {
@@ -40,6 +56,8 @@ beforeEach(async () => {
   sender.sent = [];
   sender.responses.clear();
   sender.hang = false;
+  nativeSender.sent = [];
+  nativeSender.responses.clear();
   biz = await setupBusiness(ctx.app);
   store = await storeUserClient(ctx.app, biz.client, biz.storeId, '9700000011');
   expect((await subscribe(biz.client, SUPPLIER_PHONE)).statusCode).toBe(204);
@@ -48,7 +66,7 @@ beforeEach(async () => {
 
 describe('subscriptions', () => {
   it('exposes the public key and only accepts https endpoints', async () => {
-    expect((await biz.client.get('/api/push/config')).json()).toEqual({ enabled: true, publicKey: sender.publicKey });
+    expect((await biz.client.get('/api/push/config')).json()).toEqual({ enabled: true, publicKey: sender.publicKey, nativeEnabled: true });
     expect((await subscribe(biz.client, 'http://insecure.example.com/x')).statusCode).toBe(400);
     expect((await new Client(ctx.app).get('/api/push/config')).statusCode).toBe(401);
   });
@@ -184,12 +202,79 @@ describe('reliability and privacy', () => {
     const off = await createTestContext({}, { pushSender: null });
     try {
       const { client } = await signupSupplier(off.app);
-      expect((await client.get('/api/push/config')).json()).toEqual({ enabled: false, publicKey: null });
+      expect((await client.get('/api/push/config')).json()).toEqual({ enabled: false, publicKey: null, nativeEnabled: false });
       expect((await client.post('/api/push/test')).statusCode).toBe(400);
       const productId = await createProduct(client);
       expect(productId).toBeTruthy();
     } finally {
       await closeTestContext(off);
+    }
+  });
+});
+
+describe('native app (Android) phones', () => {
+  const SUPPLIER_APP = 'fcm-token-supplier-phone-0000000000000000';
+  const STORE_APP = 'fcm-token-store-phone-00000000000000000000';
+  const register = (client: Client, token: string) => client.post('/api/push/native/register', { token, platform: 'ANDROID', appVersion: '1' });
+
+  beforeEach(async () => {
+    expect((await register(biz.client, SUPPLIER_APP)).statusCode).toBe(204);
+    expect((await register(store, STORE_APP)).statusCode).toBe(204);
+  });
+
+  it('needs a login and a sensible token', async () => {
+    expect((await register(new Client(ctx.app), 'fcm-token-anonymous-000000000000000')).statusCode).toBe(401);
+    expect((await biz.client.post('/api/push/native/register', { token: 'short', platform: 'ANDROID' })).statusCode).toBe(400);
+    expect((await biz.client.post('/api/push/native/register', { token: SUPPLIER_APP, platform: 'WINDOWS' })).statusCode).toBe(400);
+  });
+
+  it('a phone handed to someone else now notifies them alone', async () => {
+    const other = await signupSupplier(ctx.app);
+    await register(other.client, SUPPLIER_APP);
+    const rows = await ctx.db.nativePushToken.findMany({ where: { token: SUPPLIER_APP } });
+    expect(rows.map((r) => r.userId)).toEqual([other.me.user.id]);
+  });
+
+  it("can only unregister one's own phone", async () => {
+    await store.post('/api/push/native/unregister', { token: SUPPLIER_APP });
+    expect(await ctx.db.nativePushToken.count({ where: { token: SUPPLIER_APP } })).toBe(1);
+    await biz.client.post('/api/push/native/unregister', { token: SUPPLIER_APP });
+    expect(await ctx.db.nativePushToken.count({ where: { token: SUPPLIER_APP } })).toBe(0);
+  });
+
+  it('business events reach both the browser and the app', async () => {
+    const res = await biz.client.post(
+      '/api/orders/quick-sale',
+      sale(biz.storeId, [{ productId: biz.canId, quantity: 10, emptyCollected: 7 }], { amount: '200' }),
+    );
+    const expected = { title: 'Delivered: 10 cans', url: `/orders/${res.json().order.id}` };
+    expect(sender.to(STORE_PHONE)[0]).toMatchObject(expected);
+    expect(nativeSender.to(STORE_APP)[0]).toMatchObject(expected);
+    expect(nativeSender.to(SUPPLIER_APP)).toEqual([]);
+  });
+
+  it('the test notification counts browsers and app phones', async () => {
+    expect((await biz.client.post('/api/push/test')).json()).toEqual({ devices: 2, delivered: 2, failed: 0, sent: 2 });
+    nativeSender.responses.set(SUPPLIER_APP, 'gone');
+    expect((await biz.client.post('/api/push/test')).json()).toEqual({ devices: 2, delivered: 1, failed: 1, sent: 1 });
+    // Uninstalled app: its token is dropped; the app registers a fresh one when reinstalled.
+    expect(await ctx.db.nativePushToken.count({ where: { token: SUPPLIER_APP } })).toBe(0);
+  });
+
+  it("ending a store's access removes its app phones too", async () => {
+    await biz.client.delete(`/api/stores/${biz.storeId}/login`);
+    expect(await ctx.db.nativePushToken.count({ where: { token: STORE_APP } })).toBe(0);
+  });
+
+  it('only the app set up on the server: web push off, native still works', async () => {
+    const appOnly = await createTestContext({}, { pushSender: null, nativePushSender: nativeSender });
+    try {
+      const { client } = await signupSupplier(appOnly.app);
+      expect((await client.get('/api/push/config')).json()).toEqual({ enabled: false, publicKey: null, nativeEnabled: true });
+      await register(client, 'fcm-token-app-only-0000000000000000000');
+      expect((await client.post('/api/push/test')).json()).toMatchObject({ devices: 1, delivered: 1 });
+    } finally {
+      await closeTestContext(appOnly);
     }
   });
 });

@@ -21,7 +21,10 @@
     "db:seed": "npm run db:seed -w @wd/api",
     "e2e": "playwright test",
     "docs:guide": "playwright test -c playwright.docs.config.ts",
-    "docs:test-plan": "node docs/testing/build-test-plan.mjs"
+    "docs:test-plan": "node docs/testing/build-test-plan.mjs",
+    "mobile:sync": "npm run sync -w @wd/mobile",
+    "mobile:android": "npm run open -w @wd/mobile",
+    "mobile:apk": "npm run apk -w @wd/mobile"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

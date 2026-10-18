@@ -1,3 +1,5 @@
+import { isNative } from '../native/platform';
+
 /** iPhone / iPad (iPadOS reports itself as a Mac, so check for touch too). */
 export function isIos(): boolean {
   return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -5,6 +7,7 @@ export function isIos(): boolean {
 
 /** Running from the Home Screen / as an installed app rather than in a browser tab. */
 export function isInstalled(): boolean {
+  if (isNative()) return true;
   return window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 

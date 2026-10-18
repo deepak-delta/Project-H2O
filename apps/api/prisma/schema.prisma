@@ -154,6 +154,7 @@ model User {
   sessions          Session[]
   credentials       WebAuthnCredential[]
   pushSubscriptions PushSubscription[]
+  nativePushTokens  NativePushToken[]
   totp              TotpFactor?
   recoveryCodes     RecoveryCode[]
   assistedCodes     AssistedResetCode[]
@@ -221,6 +222,26 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// A phone running the native (Android) app, reached through Firebase Cloud Messaging.
+model NativePushToken {
+  id         String         @id @default(cuid())
+  userId     String
+  platform   NativePlatform
+  token      String         @unique
+  appVersion String?
+  createdAt  DateTime       @default(now())
+  lastUsedAt DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum NativePlatform {
+  ANDROID
+  IOS
 }
 
 model AuthChallenge {

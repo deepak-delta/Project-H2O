@@ -4,7 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Env } from './env';
 import type { Db } from './lib/db';
-import { createWebPushSender, type PushSender } from './lib/push';
+import { createFcmSender, createWebPushSender, type NativePushSender, type PushSender } from './lib/push';
 import { Notifier } from './modules/notifications/notifier';
 import { registerPushRoutes } from './modules/notifications/routes';
 import { registerStaffRoutes } from './modules/staff/routes';
@@ -30,6 +30,8 @@ export interface AppDeps {
   secureCookies: boolean;
   /** Override the push sender (tests); `null` disables push. Default: web-push if configured. */
   pushSender?: PushSender | null;
+  /** Override the native-app (FCM) sender (tests); `null` disables it. Default: FCM if configured. */
+  nativePushSender?: NativePushSender | null;
 }
 
 /** What route modules receive: the app's dependencies plus shared services built from them. */
@@ -65,7 +67,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   const services: Services = {
     ...deps,
-    notifier: new Notifier(deps.db, deps.pushSender === undefined ? createWebPushSender(deps.env) : deps.pushSender, app.log),
+    notifier: new Notifier(
+      deps.db,
+      deps.pushSender === undefined ? createWebPushSender(deps.env) : deps.pushSender,
+      deps.nativePushSender === undefined ? createFcmSender(deps.env) : deps.nativePushSender,
+      app.log,
+    ),
   };
 
   registerErrorHandling(app);

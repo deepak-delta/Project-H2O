@@ -3,3 +3,4 @@ dist
 .vercel
 apps/api/src/generated
 package-lock.json
+apps/mobile/android

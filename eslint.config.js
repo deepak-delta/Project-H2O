@@ -20,6 +20,10 @@ export default tseslint.config(
       'apps/web/public/**',
       // Launch-video renders (/brag): scratch scripts, not app code.
       'brag-output*/**',
+      // Native Android project and its plain Node helper: generated/Gradle files, not app code.
+      'apps/mobile/android/**',
+      'apps/mobile/www/**',
+      'apps/mobile/*.mjs',
     ],
   },
   js.configs.recommended,

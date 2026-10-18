@@ -7,6 +7,7 @@ import { Card, SectionTitle } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { api, errorMessage } from '../../services/api';
 import { toast } from '../../stores/toast';
+import { isNative } from '../../native/platform';
 import { useSession } from '../auth/session';
 import { disablePush, enablePush, getPushState, syncPush, type PushState } from './push';
 
@@ -19,6 +20,8 @@ const WHAT_YOU_GET = {
 } as const;
 
 const android = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+/** The installed Android app (its own notification settings, no Chrome involved). */
+const inApp = isNative();
 
 export default function NotificationsPage() {
   const { user } = useSession();
@@ -92,7 +95,23 @@ export default function NotificationsPage() {
             </ul>
           </Card>
         </section>
-        {android ? (
+        {inApp ? (
+          <section>
+            <SectionTitle>Not getting them?</SectionTitle>
+            <Card className="px-4 py-3">
+              <ol className="list-decimal space-y-1.5 pl-5 text-[15px] text-ink-2">
+                <li>
+                  Phone <strong>Settings → Apps → Water Delivery → Notifications</strong>: allowed.
+                </li>
+                <li>
+                  Settings → Apps → Water Delivery → <strong>Battery</strong>: set to <strong>Unrestricted</strong>, so the phone
+                  doesn't hold notifications back.
+                </li>
+                <li>Then tap <strong>Send a test</strong> above.</li>
+              </ol>
+            </Card>
+          </section>
+        ) : android ? (
           <section>
             <SectionTitle>Not getting them on Android?</SectionTitle>
             <Card className="px-4 py-3">
@@ -130,7 +149,11 @@ function StateMessage({ state }: { state: PushState }) {
         <Line
           icon={<BellOff className="size-5 text-bad" />}
           title="Blocked"
-          text="This phone is set to block notifications from the app. Allow them in the browser's site settings (or Settings → Notifications on iPhone), then come back."
+          text={
+            inApp
+              ? 'This phone is set to block notifications from the app. Allow them in Settings → Apps → Water Delivery → Notifications, then come back.'
+              : "This phone is set to block notifications from the app. Allow them in the browser's site settings (or Settings → Notifications on iPhone), then come back."
+          }
         />
       );
     case 'needs-install':

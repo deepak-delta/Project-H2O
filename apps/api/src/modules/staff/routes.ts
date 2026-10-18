@@ -9,6 +9,7 @@ import type { Db, Tx } from '../../lib/db';
 import { conflict, forbidden, notFound } from '../../lib/errors';
 import { parse } from '../../lib/validate';
 import { hashPin } from '../auth/pin';
+import { forgetPushDevices } from '../notifications/devices';
 import { staffDayTotals, staffToday } from './today';
 
 const idParams = z.object({ id: z.string().min(1) });
@@ -32,7 +33,7 @@ async function toStaffDto(db: Db, supplierId: string, u: StaffRow, day?: { start
 /** Signs a member of staff out everywhere and stops their notifications. */
 async function cutOff(tx: Tx, userId: string): Promise<void> {
   await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
-  await tx.pushSubscription.deleteMany({ where: { userId } });
+  await forgetPushDevices(tx, userId);
 }
 
 export function registerStaffRoutes(app: FastifyInstance, { db, env }: Services): void {

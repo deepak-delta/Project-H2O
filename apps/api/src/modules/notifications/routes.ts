@@ -1,4 +1,4 @@
-import { pushSubscribeSchema, pushUnsubscribeSchema, type PushConfig } from '@wd/shared';
+import { nativePushRegisterSchema, nativePushUnregisterSchema, pushSubscribeSchema, pushUnsubscribeSchema, type PushConfig } from '@wd/shared';
 import type { FastifyInstance } from 'fastify';
 import type { Services } from '../../app';
 import { requireAuth } from '../../lib/auth-context';
@@ -8,7 +8,7 @@ import { parse } from '../../lib/validate';
 export function registerPushRoutes(app: FastifyInstance, { db, notifier }: Services): void {
   app.get('/api/push/config', (req): PushConfig => {
     requireAuth(req);
-    return { enabled: notifier.enabled, publicKey: notifier.publicKey };
+    return { enabled: notifier.webEnabled, publicKey: notifier.publicKey, nativeEnabled: notifier.nativeEnabled };
   });
 
   /**
@@ -34,6 +34,26 @@ export function registerPushRoutes(app: FastifyInstance, { db, notifier }: Servi
     const auth = requireAuth(req);
     const { endpoint } = parse(pushUnsubscribeSchema, req.body);
     await db.pushSubscription.deleteMany({ where: { endpoint, userId: auth.userId } });
+    return reply.status(204).send();
+  });
+
+  /**
+   * Saves the native app's push token for the signed-in user. Like a browser, a phone handed to
+   * someone else now notifies the new person only.
+   */
+  app.post('/api/push/native/register', async (req, reply) => {
+    const auth = requireAuth(req);
+    const input = parse(nativePushRegisterSchema, req.body);
+    const data = { userId: auth.userId, platform: input.platform, appVersion: input.appVersion ?? null, lastUsedAt: new Date() };
+    await db.nativePushToken.upsert({ where: { token: input.token }, create: { token: input.token, ...data }, update: data });
+    return reply.status(204).send();
+  });
+
+  /** Only removes the caller's own phone. */
+  app.post('/api/push/native/unregister', async (req, reply) => {
+    const auth = requireAuth(req);
+    const { token } = parse(nativePushUnregisterSchema, req.body);
+    await db.nativePushToken.deleteMany({ where: { token, userId: auth.userId } });
     return reply.status(204).send();
   });
 

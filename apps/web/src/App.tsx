@@ -9,6 +9,7 @@ import { InstallPrompt } from './pwa/InstallPrompt';
 import { Button } from './components/ui/Button';
 import { PageSpinner } from './components/ui/Spinner';
 import { meQueryKey, SessionContext, useMe, useSession } from './features/auth/session';
+import { isNative } from './native/platform';
 import { queryPersister } from './offline/storage';
 import { ApiError, setUnauthenticatedHandler } from './services/api';
 
@@ -42,6 +43,8 @@ const PaymentsReportPage = lazy(() => import('./features/reports/PaymentsReportP
 const StoreHomePage = lazy(() => import('./pages/store/HomePage'));
 const AccountPage = lazy(() => import('./pages/store/AccountPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+/** Only inside the Android app; never part of the browser download. */
+const ShellUpdate = isNative() ? lazy(() => import('./native/ShellUpdate')) : null;
 const SyncPage = lazy(() => import('./features/offline/SyncPage'));
 const NotificationsPage = lazy(() => import('./features/notifications/NotificationsPage'));
 const StaffHomePage = lazy(() => import('./pages/staff/HomePage'));
@@ -209,6 +212,10 @@ const router = createBrowserRouter([
   },
 ]);
 
+if (isNative()) {
+  void import('./native/bootstrap').then(({ startNative }) => startNative((path) => void router.navigate(path)));
+}
+
 export function App() {
   return (
     <PersistQueryClientProvider
@@ -232,6 +239,11 @@ export function App() {
       <Toaster />
       <UpdatePrompt />
       <InstallPrompt />
+      {ShellUpdate ? (
+        <Suspense fallback={null}>
+          <ShellUpdate />
+        </Suspense>
+      ) : null}
     </PersistQueryClientProvider>
   );
 }

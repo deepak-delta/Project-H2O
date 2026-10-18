@@ -37,6 +37,7 @@ import { lockProductStock, storeCanBalances } from '../inventory/stock';
 import { latestPrices, setStorePrices, storePriceDtos } from '../prices/prices';
 import { storeBalanceMinor } from '../ledger/balance';
 import { hashPin } from '../auth/pin';
+import { forgetPushDevices } from '../notifications/devices';
 
 const listQuerySchema = z.object({
   search: z.string().trim().max(60).optional(),
@@ -363,7 +364,7 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
           data: { revokedAt: new Date() },
         });
         // Their phones stop receiving this business's notifications too.
-        await tx.pushSubscription.deleteMany({ where: { userId: user.id } });
+        await forgetPushDevices(tx, user.id);
       }
       await audit(tx, {
         supplierId: auth.supplierId,
@@ -642,7 +643,7 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
           data: { revokedAt: new Date() },
         });
         // Their phones stop receiving this business's notifications too.
-        await tx.pushSubscription.deleteMany({ where: { userId: store.loginUser.id } });
+        await forgetPushDevices(tx, store.loginUser.id);
       } else {
         await tx.user.create({
           data: {
@@ -684,7 +685,7 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
           data: { revokedAt: new Date() },
         });
         // Their phones stop receiving this business's notifications too.
-        await tx.pushSubscription.deleteMany({ where: { userId: userId } });
+        await forgetPushDevices(tx, userId);
         await audit(tx, {
           supplierId: auth.supplierId,
           actorId: auth.userId,

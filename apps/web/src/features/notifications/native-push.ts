@@ -14,19 +14,24 @@ import type { PushState } from './push';
 const TOKEN_KEY = 'nativePushToken';
 const REGISTER_TIMEOUT_MS = 15_000;
 
-const plugin = async () => (await import('@capacitor/push-notifications')).PushNotifications;
+/**
+ * Returns the module, never the plugin itself: a Capacitor plugin is a proxy that answers every
+ * property, so resolving a promise with it calls its `.then()` and fails on the phone.
+ */
+const pushModule = () => import('@capacitor/push-notifications');
 
 export async function nativePushState(): Promise<PushState> {
   const config = await api.get<PushConfig>('/push/config');
   if (!config.nativeEnabled) return 'server-off';
-  const { receive } = await (await plugin()).checkPermissions();
+  const { PushNotifications } = await pushModule();
+  const { receive } = await PushNotifications.checkPermissions();
   if (receive === 'denied') return 'blocked';
   return receive === 'granted' && deviceStorage.get(TOKEN_KEY) ? 'on' : 'off';
 }
 
 /** Asks permission (Android 13+ shows the system prompt) and registers this phone. */
 export async function enableNativePush(): Promise<PushState> {
-  const push = await plugin();
+  const { PushNotifications: push } = await pushModule();
   const { receive } = await push.requestPermissions();
   if (receive === 'denied') return 'blocked';
   if (receive !== 'granted') return 'off';
@@ -45,7 +50,8 @@ export async function enableNativePush(): Promise<PushState> {
 /** On app open: Firebase may have issued a new token; make sure the server has this one. */
 export async function syncNativePush(): Promise<void> {
   if (!deviceStorage.get(TOKEN_KEY)) return;
-  const { receive } = await (await plugin()).checkPermissions();
+  const { PushNotifications } = await pushModule();
+  const { receive } = await PushNotifications.checkPermissions();
   if (receive !== 'granted') return;
   await register(await currentToken());
 }
@@ -56,7 +62,8 @@ export async function disableNativePush(): Promise<void> {
   deviceStorage.remove(TOKEN_KEY);
   if (token) await api.post('/push/native/unregister', { token }).catch(() => undefined);
   // Firebase forgets the token too; turning on again gets a fresh one.
-  await (await plugin()).unregister().catch(() => undefined);
+  const { PushNotifications } = await pushModule();
+  await PushNotifications.unregister().catch(() => undefined);
 }
 
 async function register(token: string): Promise<void> {
@@ -72,7 +79,7 @@ async function register(token: string): Promise<void> {
 
 /** register() answers through events; wrap them into one promise. */
 async function currentToken(): Promise<string> {
-  const push = await plugin();
+  const { PushNotifications: push } = await pushModule();
   const handles: Promise<PluginListenerHandle>[] = [];
   const cleanup = () => handles.forEach((h) => void h.then((l) => l.remove()));
   try {

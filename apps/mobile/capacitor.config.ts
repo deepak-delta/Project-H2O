@@ -8,7 +8,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const appUrl = new URL(process.env.APP_URL ?? 'https://project-h2-o-ten.vercel.app');
 
 const config: CapacitorConfig = {
-  appId: 'com.h2o.waterdelivery',
+  appId: 'com.delta.projecth2o',
   appName: 'Water Delivery',
   // Shown only when the very first launch has no internet; afterwards the app opens offline.
   webDir: 'www',

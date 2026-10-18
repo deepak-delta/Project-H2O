@@ -48,7 +48,7 @@ prompt. `adb devices` should list it.
 ### 2. Firebase (free), for push
 
 1. At <https://console.firebase.google.com>, create a project and add an **Android app** with
-   package name `com.h2o.waterdelivery`.
+   package name `com.delta.projecth2o`.
 2. Download `google-services.json` into `apps/mobile/android/app/`. It is gitignored.
 3. Go to **Project settings → Service accounts → Generate new private key**. Base64-encode the
    downloaded file:
@@ -99,7 +99,7 @@ Create `apps/web/public/.well-known/assetlinks.json` with that fingerprint and d
     "relation": ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.h2o.waterdelivery",
+      "package_name": "com.delta.projecth2o",
       "sha256_cert_fingerprints": ["AA:BB:…"]
     }
   }

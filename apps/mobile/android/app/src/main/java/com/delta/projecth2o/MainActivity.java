@@ -1,4 +1,4 @@
-package com.h2o.waterdelivery;
+package com.delta.projecth2o;
 
 import android.os.Bundle;
 import androidx.webkit.WebSettingsCompat;

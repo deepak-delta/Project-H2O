@@ -1,10 +1,11 @@
-import { toast, useToasts } from '../stores/toast';
+import { useToasts } from '../stores/toast';
 import { safeAppPath } from './platform';
 
 /**
  * Native-app behaviour, started once inside the Android app (never loaded in a browser):
- * hardware back button, notification taps, notifications arriving while open, and a short
- * vibration on success/failure so the result is felt without looking.
+ * hardware back button, notification taps, and a short vibration on success/failure so the
+ * result is felt without looking. Notifications arriving while the app is open are shown by
+ * Android itself (presentationOptions in capacitor.config.ts).
  */
 export async function startNative(navigate: (path: string) => void): Promise<void> {
   const [{ App }, { PushNotifications }, { SplashScreen }, { Haptics, ImpactStyle, NotificationType }] = await Promise.all([
@@ -23,10 +24,6 @@ export async function startNative(navigate: (path: string) => void): Promise<voi
   // Tapped notification (also the one that cold-started the app): open its screen.
   void PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
     navigate(safeAppPath((notification.data as { url?: unknown } | undefined)?.url));
-  });
-  // Android doesn't show notifications for the app that's open; show them in the app instead.
-  void PushNotifications.addListener('pushNotificationReceived', (n) => {
-    toast.info([n.title, n.body].filter(Boolean).join(': '));
   });
 
   useToasts.subscribe((state, prev) => {

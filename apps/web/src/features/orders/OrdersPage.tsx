@@ -46,7 +46,9 @@ export default function OrdersPage() {
           ? formatTime(o.orderDate, tz)
           : formatDateTime(o.orderDate, tz);
     const who = isSupplier && o.assignedTo && OPEN.includes(o.status) ? ` · ${o.assignedTo.name}` : '';
-    return `#${o.orderNumber} · ${o.totalQuantity} can${o.totalQuantity === 1 ? '' : 's'} · ${when}${who}`;
+    // Early in the line: on a narrow phone the end gets cut off.
+    const regular = isSupplier && o.regular ? ' · Regular' : '';
+    return `#${o.orderNumber}${regular} · ${o.totalQuantity} can${o.totalQuantity === 1 ? '' : 's'} · ${when}${who}`;
   };
 
   return (

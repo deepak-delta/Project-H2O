@@ -8,7 +8,7 @@
  */
 export const ANDROID_SHELL = {
   min: 1,
-  latest: 1,
+  latest: 2,
   downloadUrl: '/download/water-delivery.apk',
 } as const;
 

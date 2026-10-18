@@ -10,6 +10,7 @@ import { conflict, forbidden, notFound } from '../../lib/errors';
 import { parse } from '../../lib/validate';
 import { hashPin } from '../auth/pin';
 import { forgetPushDevices } from '../notifications/devices';
+import { catchUpSchedules } from '../schedules/schedule';
 import { staffDayTotals, staffToday } from './today';
 
 const idParams = z.object({ id: z.string().min(1) });
@@ -36,7 +37,7 @@ async function cutOff(tx: Tx, userId: string): Promise<void> {
   await forgetPushDevices(tx, userId);
 }
 
-export function registerStaffRoutes(app: FastifyInstance, { db, env }: Services): void {
+export function registerStaffRoutes(app: FastifyInstance, { db, env, notifier }: Services): void {
   const findStaff = (supplierId: string, id: string) => db.user.findFirst({ where: { id, supplierId, role: 'STAFF', deletedAt: null } });
 
   /** A member of staff's own day. Starts empty every morning. */
@@ -44,6 +45,8 @@ export function registerStaffRoutes(app: FastifyInstance, { db, env }: Services)
     const auth = requireAuth(req);
     if (auth.role !== 'STAFF') throw forbidden();
     const me = await db.user.findUniqueOrThrow({ where: { id: auth.userId }, select: { id: true, name: true } });
+    // Today's regular deliveries appear even if the morning job hasn't run.
+    await catchUpSchedules({ db, notifier, log: req.log }, auth.supplierId);
     return staffToday(db, auth.supplierId, me);
   });
 

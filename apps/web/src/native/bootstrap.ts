@@ -15,9 +15,12 @@ export async function startNative(navigate: (path: string) => void): Promise<voi
     import('@capacitor/haptics'),
   ]);
 
-  // Back goes back through the app's screens; at the first screen the app goes to the background.
+  // Back closes an open sheet first (as in Chrome), then goes back through the app's screens;
+  // at the first screen the app goes to the background.
   void App.addListener('backButton', ({ canGoBack }) => {
-    if (canGoBack) window.history.back();
+    const sheet = [...document.querySelectorAll('dialog')].reverse().find((d) => d.open);
+    if (sheet) sheet.dispatchEvent(new Event('cancel', { cancelable: true }));
+    else if (canGoBack) window.history.back();
     else void App.minimizeApp();
   });
 

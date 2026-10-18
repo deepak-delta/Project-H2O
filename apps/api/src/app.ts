@@ -19,6 +19,7 @@ import { registerPaymentRoutes } from './modules/payments/routes';
 import { registerProductRoutes } from './modules/products/routes';
 import { registerReportRoutes } from './modules/reports/routes';
 import { registerStoreAppRoutes } from './modules/store-app/routes';
+import { registerScheduleRoutes } from './modules/schedules/routes';
 import { registerStoreRoutes } from './modules/stores/routes';
 import { registerErrorHandling } from './plugins/errors';
 import { registerSecurityHooks } from './plugins/security';
@@ -93,6 +94,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerCashFlowRoutes(app, services);
   registerReportRoutes(app, services);
   registerPushRoutes(app, services);
+  registerScheduleRoutes(app, services);
 
   return app;
 }

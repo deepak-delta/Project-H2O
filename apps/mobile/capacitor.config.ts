@@ -27,6 +27,8 @@ const config: CapacitorConfig = {
     // is the safety net: a slow network or an older web build must never leave it stuck.
     SplashScreen: { launchAutoHide: true, launchShowDuration: 4000, backgroundColor: '#f6f7f9', showSpinner: false },
     PushNotifications: { presentationOptions: ['badge', 'sound', 'alert'] },
+    // The app is light and draws under the status bar (viewport-fit=cover), using safe-area insets.
+    SystemBars: { style: 'LIGHT', initialViewportFitValueHint: 'cover' },
   },
 };
 

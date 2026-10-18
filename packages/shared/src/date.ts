@@ -40,6 +40,11 @@ function localMidnight(year: number, month: number, day: number, timeZone: strin
   return new Date(guess - zoneOffset(first, timeZone));
 }
 
+/** Hour of the day (0–23) on the zone's wall clock. */
+export function zonedHour(at: Date, timeZone: string): number {
+  return wallClockParts(at.getTime(), timeZone).hour;
+}
+
 /** "2026-10-01" — the calendar date of `at` in the zone. */
 export function zonedDateKey(at: Date, timeZone: string): string {
   const p = wallClockParts(at.getTime(), timeZone);

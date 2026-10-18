@@ -48,9 +48,9 @@ export class Notifier {
     return this.toUsers({ id: userId, active: true }, message);
   }
 
-  /** All active supplier-side users of a business. */
-  async toSupplier(supplierId: string, message: PushMessage): Promise<number> {
-    return this.toUsers({ supplierId, role: 'SUPPLIER', active: true }, message);
+  /** All active owner logins of a business, except `exceptUserId` (who did the thing). */
+  async toSupplier(supplierId: string, message: PushMessage, exceptUserId?: string): Promise<number> {
+    return this.toUsers({ supplierId, role: 'SUPPLIER', active: true, ...(exceptUserId ? { id: { not: exceptUserId } } : {}) }, message);
   }
 
   /** The store's own login, if it has one and it is active. */
@@ -134,4 +134,4 @@ export class Notifier {
   }
 }
 
-type UserFilter = { id?: string; supplierId?: string; storeId?: string; role?: 'SUPPLIER' | 'STORE'; active: true };
+type UserFilter = { id?: string | { not: string }; supplierId?: string; storeId?: string; role?: 'SUPPLIER' | 'STORE'; active: true };

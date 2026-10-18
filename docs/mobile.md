@@ -89,6 +89,19 @@ Done for the current key. `assetlinks.json` lists it, and the server accepts pas
 app's origin. If a phone's WebView can't do passkeys, the app hides the fingerprint option and
 uses the PIN.
 
+### 5. Morning job for regular deliveries
+
+Regular deliveries become orders at 6 AM IST through a daily Vercel cron job
+(`/api/cron/schedules`). Vercel sends the job a secret. Generate one and add it to Vercel as
+`CRON_SECRET` (Production), then redeploy:
+
+```bash
+openssl rand -hex 24
+```
+
+Without it, a day's regular orders still appear when the owner or a member of staff opens the
+app, but the 6 AM notifications are not sent.
+
 ## Build and share the APK
 
 The release key is `~/keys/water-delivery.jks`, alias `water`. `keystore.properties` points at it.

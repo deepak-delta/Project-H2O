@@ -125,6 +125,7 @@ model Supplier {
   products    Product[]
   storePrices StorePrice[]
   orders      Order[]
+  schedules   DeliverySchedule[]
   deliveries  Delivery[]
   movements   InventoryMovement[]
   ledger      LedgerEntry[]
@@ -161,17 +162,19 @@ model User {
   pinResets         PinResetSession[]
   authEvents        AuthEvent[]
 
-  storesCreated    Store[]             @relation("StoreCreatedBy")
-  productsCreated  Product[]           @relation("ProductCreatedBy")
-  ordersCreated    Order[]             @relation("OrderCreatedBy")
-  ordersAssigned   Order[]             @relation("OrderAssignedTo")
-  deliveriesMade   Delivery[]          @relation("DeliveryBy")
-  movementsCreated InventoryMovement[] @relation("MovementCreatedBy")
-  ledgerCreated    LedgerEntry[]       @relation("LedgerCreatedBy")
-  paymentsCreated  Payment[]           @relation("PaymentCreatedBy")
-  paymentsReversed Payment[]           @relation("PaymentReversedBy")
-  cashFlowCreated  CashFlowEntry[]     @relation("CashFlowCreatedBy")
-  auditLogs        AuditLog[]
+  storesCreated     Store[]             @relation("StoreCreatedBy")
+  productsCreated   Product[]           @relation("ProductCreatedBy")
+  ordersCreated     Order[]             @relation("OrderCreatedBy")
+  ordersAssigned    Order[]             @relation("OrderAssignedTo")
+  deliveriesMade    Delivery[]          @relation("DeliveryBy")
+  movementsCreated  InventoryMovement[] @relation("MovementCreatedBy")
+  schedulesCreated  DeliverySchedule[]  @relation("ScheduleCreatedBy")
+  schedulesAssigned DeliverySchedule[]  @relation("ScheduleAssignedTo")
+  ledgerCreated     LedgerEntry[]       @relation("LedgerCreatedBy")
+  paymentsCreated   Payment[]           @relation("PaymentCreatedBy")
+  paymentsReversed  Payment[]           @relation("PaymentReversedBy")
+  cashFlowCreated   CashFlowEntry[]     @relation("CashFlowCreatedBy")
+  auditLogs         AuditLog[]
 
   @@index([supplierId])
 }
@@ -387,6 +390,7 @@ model Store {
   totals     ClientTotals?
   canTotals  ClientCans[]
   orders     Order[]
+  schedule   DeliverySchedule?
   deliveries Delivery[]
   movements  InventoryMovement[]
   ledger     LedgerEntry[]
@@ -410,9 +414,10 @@ model Product {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  supplier      Supplier            @relation(fields: [supplierId], references: [id])
-  createdBy     User                @relation("ProductCreatedBy", fields: [createdById], references: [id])
+  supplier      Supplier               @relation(fields: [supplierId], references: [id])
+  createdBy     User                   @relation("ProductCreatedBy", fields: [createdById], references: [id])
   orderItems    OrderItem[]
+  scheduleItems DeliveryScheduleItem[]
   deliveryItems DeliveryItem[]
   movements     InventoryMovement[]
   storePrices   StorePrice[]
@@ -500,6 +505,8 @@ model Order {
   createdById  String
   /// Staff member the owner gave this order to; they deliver it. Null = owner handles it.
   assignedToId String?
+  /// Made automatically from this regular delivery (null = placed by hand).
+  scheduleId   String?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -507,6 +514,7 @@ model Order {
   store      Store               @relation(fields: [storeId], references: [id])
   createdBy  User                @relation("OrderCreatedBy", fields: [createdById], references: [id])
   assignedTo User?               @relation("OrderAssignedTo", fields: [assignedToId], references: [id])
+  schedule   DeliverySchedule?   @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   items      OrderItem[]
   deliveries Delivery[]
   movements  InventoryMovement[]
@@ -520,6 +528,56 @@ model Order {
   @@index([supplierId, orderDate])
   @@index([supplierId, updatedAt])
   @@index([supplierId, assignedToId, status])
+}
+
+/// A client's regular delivery. Each day it falls on (business timezone), an order is made
+/// for it at 6 AM; the order is idempotent per schedule and day.
+model DeliverySchedule {
+  id           String            @id @default(cuid())
+  supplierId   String
+  storeId      String            @unique
+  frequency    ScheduleFrequency
+  /// WEEKDAYS: 0 = Sunday … 6 = Saturday.
+  weekdays     Int[]
+  /// EVERY_N_DAYS: counted from startDate.
+  intervalDays Int?
+  /// MONTHLY: day numbers; days past a month's end fall on its last day.
+  monthDays    Int[]
+  startDate    DateTime          @db.Date
+  assignedToId String?
+  active       Boolean           @default(true)
+  notes        String?
+  createdById  String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  supplier   Supplier               @relation(fields: [supplierId], references: [id])
+  store      Store                  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  assignedTo User?                  @relation("ScheduleAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy  User                   @relation("ScheduleCreatedBy", fields: [createdById], references: [id])
+  items      DeliveryScheduleItem[]
+  orders     Order[]
+
+  @@index([supplierId, active])
+}
+
+model DeliveryScheduleItem {
+  id         String @id @default(cuid())
+  scheduleId String
+  productId  String
+  quantity   Int
+
+  schedule DeliverySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  product  Product          @relation(fields: [productId], references: [id])
+
+  @@unique([scheduleId, productId])
+}
+
+enum ScheduleFrequency {
+  DAILY
+  WEEKDAYS
+  EVERY_N_DAYS
+  MONTHLY
 }
 
 model OrderItem {

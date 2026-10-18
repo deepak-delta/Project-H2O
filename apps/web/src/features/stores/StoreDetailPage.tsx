@@ -29,6 +29,7 @@ import { useSession } from '../auth/session';
 import { clientTypeLabel } from './clientType';
 import { StoreAccessCard } from './StoreAccess';
 import { CollectEmptiesSheet, CorrectCansSheet, RecordPaymentSheet } from './StoreSheets';
+import { RegularDeliveryCard } from '../schedules/RegularDeliveryCard';
 
 const LEDGER_LABEL: Record<LedgerType, string> = {
   SALE: 'Delivery',
@@ -239,6 +240,8 @@ function StoreLedgerView({ store }: { store: StoreDetail }) {
         {isOwner && store.hasLogin && toMinor(store.balance) > 0 ? (
           <ReminderButton store={store} />
         ) : null}
+
+        {isOwner ? <RegularDeliveryCard storeId={store.id} active={active} /> : null}
 
         {isOwner ? (
           <>

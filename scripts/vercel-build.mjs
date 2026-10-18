@@ -90,6 +90,8 @@ const config = {
     // SPA fallback for client-side routes.
     { src: '^/(.*)$', dest: '/index.html' },
   ],
+  // 00:30 UTC = 6:00 AM IST: today's regular deliveries become orders (needs CRON_SECRET).
+  crons: [{ path: '/api/cron/schedules', schedule: '30 0 * * *' }],
 };
 writeFileSync(path.join(out, 'config.json'), JSON.stringify(config, null, 2));
 

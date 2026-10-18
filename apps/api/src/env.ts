@@ -41,6 +41,15 @@ const envSchema = z.object({
     .optional()
     .transform((v) => v || undefined)
     .refine((v) => v === undefined || Buffer.from(v, 'base64').length === 32, 'TOTP_ENCRYPTION_KEY must be 32 bytes, base64-encoded'),
+  /**
+   * Shared secret for scheduled jobs (Vercel sends it as "Authorization: Bearer …" on each cron
+   * run). Without it the job endpoint is off; regular deliveries still appear when the app opens.
+   */
+  CRON_SECRET: z
+    .string()
+    .optional()
+    .transform((v) => v || undefined)
+    .refine((v) => v === undefined || v.length >= 16, 'CRON_SECRET must be at least 16 characters'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 

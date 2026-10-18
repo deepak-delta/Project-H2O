@@ -73,6 +73,11 @@ function OrderView({ order: o }: { order: OrderDto }) {
                 </p>
               ) : null}
               {o.source === 'STORE' && isSupplier ? <p className="text-sm text-muted">Ordered by the client</p> : null}
+              {o.regular && isSupplier ? (
+                <Link to={`/stores/${o.storeId}/schedule`} className="text-sm font-medium text-brand-700">
+                  Regular delivery
+                </Link>
+              ) : null}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
               <OrderStatusBadge status={o.status} />

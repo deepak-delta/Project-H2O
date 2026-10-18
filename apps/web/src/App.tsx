@@ -26,6 +26,7 @@ const OrderDetailPage = lazy(() => import('./features/orders/OrderDetailPage'));
 const StoresPage = lazy(() => import('./features/stores/StoresPage'));
 const StoreFormPage = lazy(() => import('./features/stores/StoreFormPage'));
 const StoreDetailPage = lazy(() => import('./features/stores/StoreDetailPage'));
+const SchedulePage = lazy(() => import('./features/schedules/SchedulePage'));
 const InventoryPage = lazy(() => import('./features/inventory/InventoryPage'));
 const HoldersPage = lazy(() => import('./features/inventory/HoldersPage'));
 const ProductsPage = lazy(() => import('./features/catalog/ProductsPage'));
@@ -206,6 +207,7 @@ const router = createBrowserRouter([
         children: [
           { path: 'orders/new', element: <ByRole supplier={<NewOrderPage />} store={<OrderWaterPage />} staff={<NewOrderPage />} /> },
           { path: 'orders/:id/deliver', element: <ByRole supplier={<DeliverOrderPage />} staff={<DeliverOrderPage />} /> },
+          { path: 'stores/:id/schedule', element: <ByRole supplier={<SchedulePage />} /> },
         ],
       },
     ],

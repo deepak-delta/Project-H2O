@@ -48,7 +48,10 @@ export async function orderStatusChanged(n: Notifier, order: OrderDto): Promise<
   });
 }
 
-/** Cans delivered (quick sale or a placed order) → store, plus a low-stock check for the supplier. */
+/**
+ * Cans delivered (quick sale or a placed order) → store, and the owner unless they delivered it
+ * themselves; plus a low-stock check for the supplier.
+ */
 export async function orderDelivered(
   db: Db,
   n: Notifier,
@@ -56,6 +59,7 @@ export async function orderDelivered(
   order: OrderDto,
   storeBalance: string,
   deliveredNow: { productId: string; quantity: number }[],
+  deliveredById: string,
 ): Promise<void> {
   const biz = await business(db, supplierId);
   const empties = order.items.reduce((s, i) => s + i.emptyCollected, 0);
@@ -74,6 +78,22 @@ export async function orderDelivered(
     url: `/orders/${order.id}`,
     tag: `order-${order.id}`,
   });
+  const deliverer = await db.user.findUnique({ where: { id: deliveredById }, select: { name: true } });
+  const paid = toMinor(order.amountPaid) > 0;
+  await n.toSupplier(
+    supplierId,
+    {
+      title: `${order.status === 'PARTIALLY_DELIVERED' ? 'Part delivered' : 'Delivered'} · ${order.storeName}`,
+      body: [
+        `${cans(deliveredNow.reduce((s, d) => s + d.quantity, 0))}${deliverer ? ` by ${deliverer.name}` : ''}`,
+        `Bill ${formatMoney(order.total, biz.currency)}`,
+        paid ? `paid ${formatMoney(order.amountPaid, biz.currency)}` : 'on credit',
+      ].join(' · '),
+      url: `/orders/${order.id}`,
+      tag: `order-${order.id}`,
+    },
+    deliveredById,
+  );
   await lowStockCheck(db, n, supplierId, deliveredNow);
 }
 

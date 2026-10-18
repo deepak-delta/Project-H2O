@@ -7,8 +7,9 @@ import {
   moneySchema,
   type ProductDto,
   type StoreDetail,
+  zonedDateKey,
 } from '@wd/shared';
-import { ChevronRight } from 'lucide-react';
+import { CalendarClock, ChevronRight, X } from 'lucide-react';
 import { useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router';
@@ -24,6 +25,9 @@ import { PageSpinner } from '../../components/ui/Spinner';
 import { ApiError, errorMessage } from '../../services/api';
 import { toast } from '../../stores/toast';
 import { useProducts } from '../catalog/api';
+import { useSaveSchedule } from '../schedules/api';
+import { draftToInput, newDraft, ScheduleEditor, type ScheduleDraft } from '../schedules/ScheduleEditor';
+import { useTimezone } from '../../hooks/useMoney';
 import { cn } from '../../utils/cn';
 import { CLIENT_TYPE_LABEL } from './clientType';
 import {
@@ -69,6 +73,10 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
   const products = useProducts();
   const suggestions = usePriceSuggestions();
   const [showOpening, setShowOpening] = useState(false);
+  const tz = useTimezone();
+  const saveSchedule = useSaveSchedule();
+  /** Regular delivery set up together with a new client (null = not this time). */
+  const [regular, setRegular] = useState<ScheduleDraft | null>(null);
   const returnable = products.data?.filter((p) => p.isReturnable) ?? [];
   // Prices are kept outside the form library: one box per product, filled once the lists load.
   const [prices, setPrices] = useState<Record<string, string>>({});
@@ -101,7 +109,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
     },
   });
 
-  const pending = create.isPending || update.isPending || savePrices.isPending;
+  const pending = create.isPending || update.isPending || savePrices.isPending || saveSchedule.isPending;
   const category = useWatch({ control, name: 'category' });
 
   /** Every product needs a price for a new store; when editing, an empty box leaves it unset. */
@@ -123,6 +131,11 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
     const storePrices = collectPrices();
     if (!storePrices) {
       toast.error("Enter this client's price for each product.");
+      return;
+    }
+    const schedule = regular ? draftToInput(regular) : null;
+    if (schedule && 'error' in schedule) {
+      toast.error(`Regular delivery: ${schedule.error}`);
       return;
     }
     const onError = (err: unknown) => {
@@ -150,8 +163,24 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
         { ...values, prices: storePrices },
         {
           onSuccess: (store) => {
-            toast.success(`${store.name} added.`);
-            void navigate(`/stores/${store.id}`, { replace: true });
+            const open = () => void navigate(`/stores/${store.id}`, { replace: true });
+            if (!schedule) {
+              toast.success(`${store.name} added.`);
+              return open();
+            }
+            saveSchedule.mutate(
+              { storeId: store.id, input: schedule.input },
+              {
+                onSuccess: () => {
+                  toast.success(`${store.name} added, with regular delivery.`);
+                  open();
+                },
+                onError: (err) => {
+                  toast.error(errorMessage(err, `${store.name} was added, but the regular delivery wasn't. Set it up on their page.`));
+                  open();
+                },
+              },
+            );
           },
           onError,
         },
@@ -327,6 +356,43 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
                 <span>
                   <span className="block font-medium text-ink">Already supplying this client?</span>
                   <span className="block text-sm text-muted">Add the amount they already owe</span>
+                </span>
+                <ChevronRight className="size-5 text-muted" aria-hidden />
+              </button>
+            )
+          ) : null}
+
+          {!existing && products.data?.length ? (
+            regular ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <p className="font-semibold text-ink">Regular delivery</p>
+                  <button
+                    type="button"
+                    onClick={() => setRegular(null)}
+                    className="-mr-2 flex h-11 items-center gap-1 px-2 text-sm font-medium text-ink-2"
+                  >
+                    <X className="size-4" aria-hidden />
+                    Not now
+                  </button>
+                </div>
+                <ScheduleEditor
+                  draft={regular}
+                  onChange={setRegular}
+                  products={products.data}
+                  today={zonedDateKey(new Date(), tz)}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setRegular(newDraft(tz, products.data ?? []))}
+                className="flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-card)] border border-line bg-surface px-4 text-left"
+              >
+                <CalendarClock className="size-5 shrink-0 text-brand-700" aria-hidden />
+                <span className="flex-1">
+                  <span className="block font-medium text-ink">Delivers regularly?</span>
+                  <span className="block text-sm text-muted">Orders appear on their days automatically</span>
                 </span>
                 <ChevronRight className="size-5 text-muted" aria-hidden />
               </button>

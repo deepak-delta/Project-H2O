@@ -93,3 +93,13 @@ export async function storeUserClient(app: FastifyInstance, supplier: Client, st
   if (login.statusCode !== 200) throw new Error(`store sign-in: ${login.body}`);
   return client;
 }
+
+/** Adds a member of staff and returns a client signed in as them. */
+export async function staffClient(app: FastifyInstance, owner: Client, phone: string, name = 'Raju'): Promise<{ client: Client; id: string }> {
+  const res = await owner.post('/api/staff', { name, phone, pin: '246810' });
+  if (res.statusCode !== 201) throw new Error(`staff: ${res.body}`);
+  const client = new Client(app);
+  const login = await client.post('/api/auth/login', { phone, pin: '246810' });
+  if (login.statusCode !== 200) throw new Error(`staff login: ${login.body}`);
+  return { client, id: res.json<{ id: string }>().id };
+}

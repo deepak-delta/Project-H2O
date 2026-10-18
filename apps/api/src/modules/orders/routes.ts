@@ -22,6 +22,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { loadOrderDto, orderListInclude, toOrderListItem } from './order-dto';
 import { cancelOrder, changeOrderStatus, deliverOrder, placeOrder } from './lifecycle';
 import { quickSale } from './quick-sale';
+import { catchUpSchedules } from '../schedules/schedule';
 
 const OPEN_STATUSES = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'] as const;
 const idParams = z.object({ id: z.string().min(1) });
@@ -33,13 +34,14 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
     const input = parse(quickSaleSchema, req.body);
     const result = await quickSale(db, auth, input);
     if (!result.replayed) {
-      await notify.orderDelivered(db, notifier, auth.supplierId, result.order, result.storeBalance, input.items);
+      await notify.orderDelivered(db, notifier, auth.supplierId, result.order, result.storeBalance, input.items, auth.userId);
     }
     return reply.status(result.replayed ? 200 : 201).send(result);
   });
 
   app.get('/api/orders', async (req) => {
     const auth = requireAuth(req);
+    if (auth.role === 'SUPPLIER') await catchUpSchedules({ db, notifier, log: req.log }, auth.supplierId);
     const q = parse(
       z.object({
         status: z.union([z.enum(ORDER_STATUSES), z.literal('OPEN')]).optional(),
@@ -118,7 +120,7 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
     const input = parse(deliverOrderSchema, req.body);
     const result = await deliverOrder(db, auth, id, input);
     if (!result.replayed) {
-      await notify.orderDelivered(db, notifier, auth.supplierId, result.order, result.storeBalance, input.items);
+      await notify.orderDelivered(db, notifier, auth.supplierId, result.order, result.storeBalance, input.items, auth.userId);
     }
     return reply.status(result.replayed ? 200 : 201).send(result);
   });

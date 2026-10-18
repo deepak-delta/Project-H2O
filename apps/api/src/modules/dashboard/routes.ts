@@ -1,14 +1,15 @@
 import { fromMinor, LOW_STOCK_FILLED_CANS, zonedDayRange, type DashboardSummary } from '@wd/shared';
 import type { FastifyInstance } from 'fastify';
-import type { AppDeps } from '../../app';
+import type { Services } from '../../app';
 import { requireSupplier } from '../../lib/auth-context';
 import { getBusinessSettings } from '../../lib/business';
 import { decToMinor, sqlSumToMinor } from '../../lib/money';
 import { stockByProduct } from '../inventory/stock';
+import { catchUpSchedules } from '../schedules/schedule';
 
 const OPEN_STATUSES = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'] as const;
 
-export function registerDashboardRoutes(app: FastifyInstance, { db }: AppDeps): void {
+export function registerDashboardRoutes(app: FastifyInstance, { db, notifier }: Services): void {
   /**
    * The owner's "anything new?" check, polled every few seconds while the app is open. One
    * indexed lookup returning when the business last changed (a sale, payment, stock move,
@@ -29,6 +30,8 @@ export function registerDashboardRoutes(app: FastifyInstance, { db }: AppDeps): 
 
   app.get('/api/dashboard', async (req): Promise<DashboardSummary> => {
     const { supplierId } = requireSupplier(req);
+    // Today's regular deliveries appear under Pending even if the morning job hasn't run.
+    await catchUpSchedules({ db, notifier, log: req.log }, supplierId);
     const { timezone } = await getBusinessSettings(db, supplierId);
     const today = zonedDayRange(timezone);
     const inToday = { gte: today.start, lt: today.end };

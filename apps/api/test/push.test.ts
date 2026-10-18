@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { NativePushSender, PushMessage, PushOutcome, PushResult, PushSender, PushTarget } from '../src/lib/push';
 import { Client, closeTestContext, createTestContext, resetDb, signupSupplier, type TestContext } from './helpers';
-import { createProduct, sale, setupBusiness, storeUserClient, type Business } from './fixtures';
+import { createProduct, sale, setupBusiness, staffClient, storeUserClient, type Business } from './fixtures';
 
 /** Records every push instead of sending it; individual endpoints can be told to fail. */
 class FakeSender implements PushSender {
@@ -128,6 +128,21 @@ describe('who is told what', () => {
     const [msg] = sender.to(STORE_PHONE);
     expect(msg).toMatchObject({ title: 'Delivered: 10 cans', url: `/orders/${res.json().order.id}` });
     expect(msg?.body).toBe('Bill ₹500 · paid ₹200 · 7 empties collected · You owe ₹300');
+    expect(sender.to(SUPPLIER_PHONE)).toEqual([]);
+  });
+
+  it('a delivery by staff tells the owner; their own deliveries do not', async () => {
+    const staff = await staffClient(ctx.app, biz.client, '9600000021', 'Raju');
+    const res = await staff.client.post(
+      '/api/orders/quick-sale',
+      sale(biz.storeId, [{ productId: biz.canId, quantity: 4, emptyCollected: 4 }], { amount: '0' }),
+    );
+    expect(res.statusCode).toBe(201);
+    expect(sender.to(SUPPLIER_PHONE)).toEqual([
+      expect.objectContaining({ title: 'Delivered · Sri Ganesh Stores', body: '4 cans by Raju · Bill ₹200 · on credit', url: `/orders/${res.json().order.id}` }),
+    ]);
+    sender.sent = [];
+    await biz.client.post('/api/orders/quick-sale', sale(biz.storeId, [{ productId: biz.canId, quantity: 1 }], { amount: '50' }));
     expect(sender.to(SUPPLIER_PHONE)).toEqual([]);
   });
 

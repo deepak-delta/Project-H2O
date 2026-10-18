@@ -13,6 +13,10 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Same as the app's background, so the area behind the system bars never shows dark. -->
+        <item name="android:windowBackground">@color/app_canvas</item>
+        <item name="android:statusBarColor">@color/app_canvas</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
 

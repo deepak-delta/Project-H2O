@@ -160,6 +160,8 @@ export interface OrderDto {
   stockWarning: boolean;
   /** Member of staff the owner gave this order to. */
   assignedTo: { id: string; name: string } | null;
+  /** Made automatically from the client's regular delivery. */
+  regular: boolean;
 }
 
 export interface OrderListItem {
@@ -177,6 +179,8 @@ export interface OrderListItem {
   totalQuantity: number;
   /** Member of staff the owner gave this order to. */
   assignedTo: { id: string; name: string } | null;
+  /** Made automatically from the client's regular delivery. */
+  regular: boolean;
 }
 
 export interface QuickSaleResult {

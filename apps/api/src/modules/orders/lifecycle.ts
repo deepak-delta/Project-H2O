@@ -27,7 +27,13 @@ const OPEN = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'] as const;
 const isOpen = (status: string) => (OPEN as readonly string[]).includes(status);
 
 /** A store asks for water (or the supplier notes a phone order). No money or stock moves yet. */
-export async function placeOrder(db: Db, auth: SupplierContext | StoreContext, input: z.output<typeof placeOrderSchema>): Promise<{ order: OrderDto; replayed: boolean }> {
+export async function placeOrder(
+  db: Db,
+  auth: SupplierContext | StoreContext,
+  input: z.output<typeof placeOrderSchema>,
+  /** Set when a regular delivery made this order. */
+  options: { scheduleId?: string } = {},
+): Promise<{ order: OrderDto; replayed: boolean }> {
   const storeId = auth.role === 'STORE' ? auth.storeId : input.storeId;
   if (!storeId) throw validationError('Choose a client.', { storeId: 'Choose a client' });
 
@@ -93,6 +99,7 @@ export async function placeOrder(db: Db, auth: SupplierContext | StoreContext, i
             notes: input.notes,
             clientId: input.clientId,
             createdById: auth.userId,
+            scheduleId: options.scheduleId ?? null,
             items: {
               create: lines.map((l) => ({
                 productId: l.productId,

@@ -8,6 +8,8 @@ export const qk = {
   store: (id: string) => ['stores', 'detail', id] as const,
   storeLedger: (id: string) => ['stores', 'ledger', id] as const,
   storeCans: (id: string) => ['stores', 'cans', id] as const,
+  /** A client's regular delivery. */
+  schedule: (storeId: string) => ['stores', 'schedule', storeId] as const,
   orders: (params: Record<string, unknown>) => ['orders', 'list', params] as const,
   ordersRoot: ['orders'] as const,
   order: (id: string) => ['orders', 'detail', id] as const,

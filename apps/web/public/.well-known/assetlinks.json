@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.delta.projecth2o",
+      "sha256_cert_fingerprints": ["83:F5:47:2F:10:19:82:AF:71:A3:1E:61:D8:2B:9A:83:AF:6F:F9:56:2A:E4:F3:A4:EF:D9:35:E5:69:6E:8B:88"]
+    }
+  }
+]

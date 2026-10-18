@@ -13,6 +13,15 @@ import { unauthenticated, validationError } from '../../lib/errors';
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 /**
+ * Inside the Android app, a passkey's origin is the app's signing key instead of the website
+ * (the site vouches for that key in public/.well-known/assetlinks.json). Keep both in step when
+ * the release key changes.
+ */
+const ANDROID_APP_ORIGINS = ['android:apk-key-hash:g_VHLxAZgq9xox5h2Cuag69v-VYq5POk79k15Wlui4g'];
+
+const expectedOrigins = (rp: RelyingParty) => [rp.origin, ...ANDROID_APP_ORIGINS];
+
+/**
  * The relying party is derived from the (already same-origin-checked) request origin, so the
  * same build works on localhost, Vercel previews and the production domain.
  */
@@ -99,7 +108,7 @@ export async function finishRegistration(
   const verification = await verifyRegistrationResponse({
     response,
     expectedChallenge: challenge,
-    expectedOrigin: rp.origin,
+    expectedOrigin: expectedOrigins(rp),
     expectedRPID: rp.rpID,
     requireUserVerification: true,
   }).catch(() => null);
@@ -156,7 +165,7 @@ export async function finishLogin(
   const verification = await verifyAuthenticationResponse({
     response,
     expectedChallenge: challenge,
-    expectedOrigin: rp.origin,
+    expectedOrigin: expectedOrigins(rp),
     expectedRPID: rp.rpID,
     requireUserVerification: true,
     credential: {

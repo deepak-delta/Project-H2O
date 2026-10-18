@@ -85,44 +85,39 @@ keyPassword=…
 
 ### 4. Fingerprint login inside the app
 
-Passkeys work in the app once the website vouches for it. Get the key's SHA-256 fingerprint:
-
-```bash
-keytool -list -v -keystore ~/keys/water-delivery.jks -alias water
-```
-
-Create `apps/web/public/.well-known/assetlinks.json` with that fingerprint and deploy:
-
-```json
-[
-  {
-    "relation": ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.delta.projecth2o",
-      "sha256_cert_fingerprints": ["AA:BB:…"]
-    }
-  }
-]
-```
-
-If a phone's WebView can't do passkeys, the app hides the fingerprint option and uses the PIN.
+Done for the current key. `assetlinks.json` lists it, and the server accepts passkeys from the
+app's origin. If a phone's WebView can't do passkeys, the app hides the fingerprint option and
+uses the PIN.
 
 ## Build and share the APK
+
+The release key is `~/keys/water-delivery.jks`, alias `water`. `keystore.properties` points at it.
 
 ```bash
 npm run mobile:apk
 ```
 
-The APK is written to `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`. Copy it
-to `apps/web/public/download/water-delivery.apk` and deploy, or upload it anywhere and point
-`downloadUrl` there. Then share the link.
+Then publish it. The download link is
+`https://project-h2-o-ten.vercel.app/download/water-delivery.apk`:
+
+```bash
+cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk apps/web/public/download/water-delivery.apk
+```
+
+Commit and deploy. For a native update, also raise `versionCode` in `build.gradle` and `latest`
+(or `min`) in `apps/web/src/native/shell.ts` in the same deploy.
 
 On each phone:
 
 1. Open the link and download.
 2. Allow **Install unknown apps** for the browser when Android asks (once).
 3. Install, open, log in, then go to **More → Notifications → Turn on**.
+
+The key's SHA-256 fingerprint appears in two places that must change together if the key ever
+changes:
+
+- `apps/web/public/.well-known/assetlinks.json`
+- `ANDROID_APP_ORIGINS` in `apps/api/src/modules/auth/webauthn.ts`
 
 ## Development
 

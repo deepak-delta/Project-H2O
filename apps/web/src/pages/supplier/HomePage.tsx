@@ -126,7 +126,11 @@ function Dashboard() {
           <TriangleAlert className="size-5 shrink-0" aria-hidden />
           {stockWarnings > 0
             ? `${stockWarnings} deliver${stockWarnings === 1 ? 'y' : 'ies'} today went past your stock. Check the count.`
-            : `Only ${inventory.filled} filled cans left.`}
+            : inventory.filled < 0
+              ? `Filled cans are ${-inventory.filled} below zero. Add the stock you refilled.`
+              : inventory.filled === 0
+                ? 'No filled cans left.'
+                : `Only ${inventory.filled} filled can${inventory.filled === 1 ? '' : 's'} left.`}
         </Link>
       ) : null}
 

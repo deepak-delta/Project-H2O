@@ -88,7 +88,9 @@ export function BottomNav({ role }: { role: Role }) {
     <nav
       aria-label="Main"
       className={cn(
-        'fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 pb-safe backdrop-blur-sm',
+        // Same grey as the page: in Safari (iOS 26) the strip under this bar, where Safari keeps
+        // its toolbar, is painted with the page colour, and a white bar would end in a grey gap.
+        'fixed inset-x-0 bottom-0 z-30 border-t border-line-strong/70 bg-canvas/95 pb-safe backdrop-blur-sm',
         'lg:inset-y-0 lg:right-auto lg:w-60 lg:border-t-0 lg:border-r lg:pt-6 lg:pb-6',
       )}
     >

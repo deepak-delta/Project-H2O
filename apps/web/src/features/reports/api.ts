@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { BusinessSummary, InventoryReport, OutstandingReport, PaymentDto, SalesReport } from '@wd/shared';
+import type { BusinessSummary, DuesBreakdown, InventoryReport, OutstandingReport, PaymentDto, SalesReport } from '@wd/shared';
 import { api } from '../../services/api';
 import { qk } from '../../services/queryKeys';
 
@@ -19,6 +19,16 @@ export function useBusinessSummary(from: string, to: string) {
 
 export function useOutstandingReport() {
   return useQuery({ queryKey: [...qk.reports, 'outstanding'], queryFn: () => api.get<OutstandingReport>('/reports/outstanding') });
+}
+
+/** One client's unpaid bills, for the reminder message. Always fresh: it's about to be sent. */
+export function useDues(storeId: string | null) {
+  return useQuery({
+    queryKey: [...qk.reports, 'dues', storeId],
+    queryFn: () => api.get<DuesBreakdown>(`/stores/${storeId}/dues`),
+    enabled: Boolean(storeId),
+    staleTime: 0,
+  });
 }
 
 export function useInventoryReport(from: string, to: string) {

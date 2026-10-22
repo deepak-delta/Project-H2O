@@ -1,9 +1,10 @@
+import { APP_RESUME_EVENT } from '../offline/useLiveUpdates';
 import { useToasts } from '../stores/toast';
 import { safeAppPath } from './platform';
 
 /**
  * Native-app behaviour, started once inside the Android app (never loaded in a browser):
- * hardware back button, notification taps, and a short vibration on success/failure so the
+ * hardware back button, notification taps, refreshing on return, and a short vibration on success/failure so the
  * result is felt without looking. Notifications arriving while the app is open are shown by
  * Android itself (presentationOptions in capacitor.config.ts).
  */
@@ -23,6 +24,9 @@ export async function startNative(navigate: (path: string) => void): Promise<voi
     else if (canGoBack) window.history.back();
     else void App.minimizeApp();
   });
+
+  // Back in front: refresh what's on screen (the WebView doesn't always say it was hidden).
+  void App.addListener('resume', () => window.dispatchEvent(new Event(APP_RESUME_EVENT)));
 
   // Tapped notification (also the one that cold-started the app): open its screen.
   void PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {

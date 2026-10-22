@@ -374,6 +374,8 @@ model Store {
   ownerName     String?
   phone         String?
   address       String?
+  /// A Google Maps (or Apple Maps / OpenStreetMap) link to the client, for delivery staff.
+  mapLink       String?
   latitude      Decimal?       @db.Decimal(9, 6)
   longitude     Decimal?       @db.Decimal(9, 6)
   creditLimit   Decimal?       @db.Decimal(12, 2)
@@ -527,6 +529,8 @@ model Order {
   @@index([supplierId, storeId, orderDate])
   @@index([supplierId, orderDate])
   @@index([supplierId, updatedAt])
+  /// A client's own "anything new?" check.
+  @@index([storeId, updatedAt])
   @@index([supplierId, assignedToId, status])
 }
 

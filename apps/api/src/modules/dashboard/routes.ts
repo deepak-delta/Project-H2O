@@ -1,7 +1,7 @@
 import { fromMinor, LOW_STOCK_FILLED_CANS, zonedDayRange, type DashboardSummary } from '@wd/shared';
 import type { FastifyInstance } from 'fastify';
 import type { Services } from '../../app';
-import { requireSupplier } from '../../lib/auth-context';
+import { requireAuth, requireSupplier } from '../../lib/auth-context';
 import { getBusinessSettings } from '../../lib/business';
 import { decToMinor, sqlSumToMinor } from '../../lib/money';
 import { stockByProduct } from '../inventory/stock';
@@ -11,20 +11,30 @@ const OPEN_STATUSES = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'] as const;
 
 export function registerDashboardRoutes(app: FastifyInstance, { db, notifier }: Services): void {
   /**
-   * The owner's "anything new?" check, polled every few seconds while the app is open. One
-   * indexed lookup returning when the business last changed (a sale, payment, stock move,
-   * expense, or an order placed / updated, by anyone including staff). The app refreshes its
-   * screens only when this moves, instead of re-running the dashboard on a timer.
+   * "Anything new?", polled every few seconds while the app is open. One indexed lookup
+   * returning when the data this person sees last changed; the app refreshes its screens only
+   * when this moves, instead of re-running every screen on a timer. The owner and staff see the
+   * whole business (a sale, payment, stock move, expense, an order placed or updated by anyone);
+   * a client only their own orders, bills, payments and cans. Only a time is returned.
    */
   app.get('/api/changes', async (req) => {
-    const { supplierId } = requireSupplier(req);
-    const [row] = await db.$queryRaw<{ at: Date | null }[]>`
-      SELECT GREATEST(
-        (SELECT MAX("createdAt") FROM "LedgerEntry" WHERE "supplierId" = ${supplierId}),
-        (SELECT MAX("createdAt") FROM "InventoryMovement" WHERE "supplierId" = ${supplierId}),
-        (SELECT MAX("createdAt") FROM "CashFlowEntry" WHERE "supplierId" = ${supplierId}),
-        (SELECT MAX("updatedAt") FROM "Order" WHERE "supplierId" = ${supplierId})
-      ) AS at`;
+    const auth = requireAuth(req);
+    const { supplierId } = auth;
+    const [row] =
+      auth.role === 'STORE'
+        ? await db.$queryRaw<{ at: Date | null }[]>`
+            SELECT GREATEST(
+              (SELECT MAX("createdAt") FROM "LedgerEntry" WHERE "supplierId" = ${supplierId} AND "storeId" = ${auth.storeId}),
+              (SELECT MAX("createdAt") FROM "InventoryMovement" WHERE "supplierId" = ${supplierId} AND "storeId" = ${auth.storeId}),
+              (SELECT MAX("updatedAt") FROM "Order" WHERE "storeId" = ${auth.storeId})
+            ) AS at`
+        : await db.$queryRaw<{ at: Date | null }[]>`
+            SELECT GREATEST(
+              (SELECT MAX("createdAt") FROM "LedgerEntry" WHERE "supplierId" = ${supplierId}),
+              (SELECT MAX("createdAt") FROM "InventoryMovement" WHERE "supplierId" = ${supplierId}),
+              (SELECT MAX("createdAt") FROM "CashFlowEntry" WHERE "supplierId" = ${supplierId}),
+              (SELECT MAX("updatedAt") FROM "Order" WHERE "supplierId" = ${supplierId})
+            ) AS at`;
     return { at: row?.at?.toISOString() ?? null };
   });
 

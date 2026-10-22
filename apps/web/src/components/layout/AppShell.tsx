@@ -1,13 +1,15 @@
+import { RefreshCw } from 'lucide-react';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router';
 
 import { useSession } from '../../features/auth/session';
 import { syncPush } from '../../features/notifications/push';
-import { PageSpinner } from '../ui/Spinner';
+import { PageSpinner, Spinner } from '../ui/Spinner';
 import { useSyncEngine } from '../../offline/engine';
 import { useLiveUpdates } from '../../offline/useLiveUpdates';
 import { useWarmCache } from '../../offline/useWarmCache';
 import { BottomNav } from './BottomNav';
+import { PULL_TRIGGER, usePullToRefresh } from './usePullToRefresh';
 import { SyncBar } from './SyncBar';
 
 /**
@@ -23,8 +25,8 @@ export function AppShell({ nav = true }: { nav?: boolean }) {
   const { user } = useSession();
   useSyncEngine(user.id);
   useWarmCache(user.role);
-  // The owner sees staff and store activity within seconds.
-  useLiveUpdates(user.role === 'SUPPLIER');
+  // Everyone sees what others record within seconds, and fresh data on return to the app.
+  useLiveUpdates(user.role);
   // Keep this phone registered for notifications (on open, and on return after an hour away).
   useEffect(() => {
     let last = Date.now();
@@ -39,6 +41,7 @@ export function AppShell({ nav = true }: { nav?: boolean }) {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [user.id]);
   const scroller = useRef<HTMLDivElement>(null);
+  const { pull, refreshing } = usePullToRefresh(scroller);
   const { pathname } = useLocation();
   // Each screen starts at the top.
   useEffect(() => {
@@ -55,6 +58,7 @@ export function AppShell({ nav = true }: { nav?: boolean }) {
           nav ? 'mx-auto max-w-xl pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:max-w-3xl lg:pb-8' : 'mx-auto max-w-xl'
         }
       >
+        <PullIndicator pull={pull} refreshing={refreshing} />
         <SyncBar />
         <Suspense fallback={<PageSpinner />}>
           <Outlet />
@@ -66,6 +70,33 @@ export function AppShell({ nav = true }: { nav?: boolean }) {
           <BiometricEnrollPrompt />
         </Suspense>
       ) : null}
+    </div>
+  );
+}
+
+/** The round badge that follows a pull-down and spins while the screen refreshes. */
+function PullIndicator({ pull, refreshing }: { pull: number; refreshing: boolean }) {
+  if (!refreshing && pull === 0) return null;
+  const ready = pull >= PULL_TRIGGER;
+  return (
+    <div
+      className="pointer-events-none fixed inset-x-0 z-40 flex justify-center lg:pl-60"
+      style={{ top: `calc(env(safe-area-inset-top) + ${refreshing ? 56 : Math.max(pull - 8, 0)}px)` }}
+    >
+      <span
+        role={refreshing ? 'status' : undefined}
+        className="flex size-10 items-center justify-center rounded-full border border-line bg-surface text-brand-700 shadow-sm"
+      >
+        {refreshing ? (
+          <Spinner label="Refreshing" />
+        ) : (
+          <RefreshCw
+            className="size-5"
+            aria-hidden
+            style={{ transform: `rotate(${(pull / PULL_TRIGGER) * 270}deg)`, opacity: ready ? 1 : 0.6 }}
+          />
+        )}
+      </span>
     </div>
   );
 }

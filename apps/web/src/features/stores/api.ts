@@ -68,7 +68,7 @@ export function cachedStores(queryClient: QueryClient): StoreListItem[] {
 
 /** Offline stand-in for a store's detail when only its list row was saved. */
 export function storeDetailFromListItem(s: StoreListItem): StoreDetail {
-  return { ...s, address: null, notes: null, creditLimit: null, cans: [], lastOrderItems: [], hasLogin: false, loginPhone: null, createdAt: '' };
+  return { ...s, address: null, mapLink: null, notes: null, creditLimit: null, cans: [], lastOrderItems: [], hasLogin: false, loginPhone: null, createdAt: '' };
 }
 
 export function useStore(id: string | undefined) {

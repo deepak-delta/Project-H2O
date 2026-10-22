@@ -7,6 +7,7 @@ import { PageSpinner } from '../../components/ui/Spinner';
 import { errorMessage } from '../../services/api';
 import { useProducts } from '../catalog/api';
 import { useStore } from '../stores/api';
+import { Destination } from '../stores/Destination';
 import { useDeliverOrder, useOrder } from './api';
 import { DeliveryDone, DeliveryForm, DeliveryQueued, type DeliveryTotals } from './DeliveryForm';
 
@@ -72,6 +73,7 @@ function DeliverForm({ order, store }: { order: OrderDto; store: StoreDetail }) 
       store={store}
       title={`Deliver #${order.orderNumber} · ${store.name}`}
       back={true}
+      top={<Destination address={store.address ?? order.storeAddress} mapLink={store.mapLink ?? order.storeMapLink} />}
       lines={order.items.map((i) => ({
         productId: i.productId,
         name: i.productName,

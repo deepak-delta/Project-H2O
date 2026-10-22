@@ -5,6 +5,7 @@ export * from './errors';
 export * from './schemas/common';
 export * from './schemas/auth';
 export * from './date';
+export * from './maps';
 export * from './schemas/catalog';
 export * from './schemas/sales';
 export * from './schemas/inventory';

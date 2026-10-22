@@ -1,5 +1,5 @@
-import type { StaffActivity, StaffTodayDto } from '@wd/shared';
-import { Receipt, Truck } from 'lucide-react';
+import { mapsUrl, type StaffActivity, type StaffTodayDto } from '@wd/shared';
+import { Navigation, Receipt, Truck } from 'lucide-react';
 import { Link } from 'react-router';
 import { Card, ListCard, ListRow, SectionTitle } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -53,21 +53,38 @@ export function StaffDay({ day, self }: { day: StaffTodayDto; self: boolean }) {
           <Card className="px-4 py-3 text-[15px] text-muted">{self ? 'No orders waiting for you.' : 'Nothing waiting.'}</Card>
         ) : (
           <ListCard>
-            {day.assignedOrders.map((o) => (
-              <ListRow
-                key={o.id}
-                to={self ? `/orders/${o.id}/deliver` : `/orders/${o.id}`}
-                title={o.storeName}
-                subtitle={`#${o.orderNumber} · ${o.totalQuantity} can${o.totalQuantity === 1 ? '' : 's'}`}
-                trailing={
-                  self ? (
-                    <span className="flex items-center gap-1 text-sm font-semibold text-brand-700">
-                      <Truck className="size-4" aria-hidden /> Deliver
-                    </span>
-                  ) : undefined
-                }
-              />
-            ))}
+            {day.assignedOrders.map((o) => {
+              const map = mapsUrl({ address: o.storeAddress, mapLink: o.storeMapLink });
+              return (
+                <div key={o.id} className="flex items-center">
+                  <div className="min-w-0 flex-1">
+                    <ListRow
+                      to={self ? `/orders/${o.id}/deliver` : `/orders/${o.id}`}
+                      title={o.storeName}
+                      subtitle={[`#${o.orderNumber} · ${o.totalQuantity} can${o.totalQuantity === 1 ? '' : 's'}`, o.storeAddress].filter(Boolean).join(' · ')}
+                      trailing={
+                        self ? (
+                          <span className="flex items-center gap-1 text-sm font-semibold text-brand-700">
+                            <Truck className="size-4" aria-hidden /> Deliver
+                          </span>
+                        ) : undefined
+                      }
+                    />
+                  </div>
+                  {map ? (
+                    <a
+                      href={map}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`Open ${o.storeName} in Maps`}
+                      className="mr-2 flex size-11 shrink-0 items-center justify-center rounded-full text-brand-700 hover:bg-brand-50"
+                    >
+                      <Navigation className="size-5" />
+                    </a>
+                  ) : null}
+                </div>
+              );
+            })}
           </ListCard>
         )}
       </section>

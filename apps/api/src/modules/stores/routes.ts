@@ -28,6 +28,7 @@ import { audit } from '../../lib/audit';
 import type { Db } from '../../lib/db';
 import { conflict, notFound, validationError } from '../../lib/errors';
 import { idempotent } from '../../lib/idempotency';
+import { duesBreakdown } from '../ledger/dues';
 import { decToMinor, decToString, minorToDec, sqlSumToMinor } from '../../lib/money';
 import { resolveOccurredAt } from '../../lib/occurred-at';
 import { decodeCursor, olderThan, toPage } from '../../lib/pagination';
@@ -167,6 +168,7 @@ async function loadStoreDetail(db: Db, supplierId: string, storeId: string): Pro
     phone: store.phone,
     status: store.status,
     address: store.address,
+    mapLink: store.mapLink,
     notes: store.notes,
     creditLimit: store.creditLimit ? decToString(store.creditLimit) : null,
     balance: fromMinor(balance),
@@ -255,6 +257,7 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
           categoryOther: input.category === 'OTHER' ? input.categoryOther : null,
           phone: input.phone,
           address: input.address,
+          mapLink: input.mapLink,
           notes: input.notes,
           creditLimit: input.creditLimit,
         },
@@ -336,6 +339,7 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
         categoryOther: input.category === 'OTHER' ? input.categoryOther : null,
         phone: input.phone,
         address: input.address,
+        mapLink: input.mapLink,
         notes: input.notes,
         creditLimit: input.creditLimit,
       },
@@ -377,6 +381,13 @@ export function registerStoreRoutes(app: FastifyInstance, { db, env, notifier }:
       });
     });
     return loadStoreDetail(db, auth.supplierId, id);
+  });
+
+  /** What the client owes, bill by bill (for the reminder message). Owner only. */
+  app.get('/api/stores/:id/dues', async (req) => {
+    const { supplierId } = requireSupplier(req);
+    const { id } = parse(z.object({ id: z.string() }), req.params);
+    return duesBreakdown(db, supplierId, id);
   });
 
   /** Money ledger with a running balance — the digital version of the shop's notebook page. */

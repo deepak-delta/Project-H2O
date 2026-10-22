@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CLIENT_CATEGORIES, STORE_STATUSES, type ClientCategory, type StoreStatus } from '../enums';
+import { extractUrl, isMapLink } from '../maps';
 import { moneySchema, phoneSchema, quantitySchema } from './common';
 
 // Optional fields accept "", null or undefined and normalise to null, so a parsed value is
@@ -55,6 +56,20 @@ export const storeFieldsSchema = z.object({
   ownerName: optionalText(80),
   phone: optionalPhone,
   address: optionalText(200),
+  /** Google Maps (or Apple Maps / OpenStreetMap) link; pasted share text is fine, the link is kept. */
+  mapLink: z
+    .string()
+    .nullish()
+    .transform((v, ctx) => {
+      const text = v?.trim();
+      if (!text) return null;
+      const url = extractUrl(text);
+      if (!url || !isMapLink(url)) {
+        ctx.addIssue({ code: 'custom', message: 'Paste a Google Maps link (Maps → Share → Copy link)' });
+        return z.NEVER;
+      }
+      return url.slice(0, 500);
+    }),
   notes: optionalText(500),
   creditLimit: moneySchema()
     .nullish()
@@ -137,6 +152,7 @@ export interface StoreListItem {
 
 export interface StoreDetail extends StoreListItem {
   address: string | null;
+  mapLink: string | null;
   notes: string | null;
   creditLimit: string | null;
   cans: StoreCans[];

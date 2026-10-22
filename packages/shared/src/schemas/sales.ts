@@ -136,6 +136,9 @@ export interface OrderDto {
   orderNumber: number;
   storeId: string;
   storeName: string;
+  /** Where to deliver (shown to staff with Open in Maps). */
+  storeAddress: string | null;
+  storeMapLink: string | null;
   status: OrderStatus;
   source: OrderSource;
   orderDate: string;
@@ -181,6 +184,9 @@ export interface OrderListItem {
   assignedTo: { id: string; name: string } | null;
   /** Made automatically from the client's regular delivery. */
   regular: boolean;
+  /** Where to deliver: the client's written address and map link, when saved. */
+  storeAddress: string | null;
+  storeMapLink: string | null;
 }
 
 export interface QuickSaleResult {

@@ -105,11 +105,27 @@ export interface SalesReport {
 export interface OutstandingRow {
   storeId: string;
   storeName: string;
+  ownerName: string | null;
   phone: string | null;
   balance: string;
   cans: number;
   lastPaymentAt: string | null;
   lastDeliveryAt: string | null;
+}
+
+/**
+ * What a client owes, bill by bill. Payments count against the oldest bills first, so what's
+ * left unpaid is the newest bills; the oldest of those may be partly paid.
+ */
+export interface DuesBreakdown {
+  storeId: string;
+  storeName: string;
+  phone: string | null;
+  balance: string;
+  /** Owed from before these bills (old notebook balance, adjustments). */
+  broughtForward: string;
+  /** Oldest first. */
+  items: { orderId: string; orderNumber: number; date: string; cans: number; billed: string; due: string }[];
 }
 
 export interface OutstandingReport {

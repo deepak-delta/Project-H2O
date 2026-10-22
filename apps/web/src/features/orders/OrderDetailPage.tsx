@@ -15,6 +15,7 @@ import { formatDate, formatDateTime } from '../../utils/format';
 import { useSession } from '../auth/session';
 import { useAssignOrder, useStaffList } from '../staff/api';
 import { useOrder, useOrderStatus } from './api';
+import { Destination } from '../stores/Destination';
 import { SummaryRow } from './DeliveryForm';
 import { CancelOrderSheet, ReversePaymentSheet } from './OrderSheets';
 
@@ -92,6 +93,8 @@ function OrderView({ order: o }: { order: OrderDto }) {
             </p>
           ) : null}
         </Card>
+
+        {!isStore && (open || o.status === 'PARTIALLY_DELIVERED') ? <Destination address={o.storeAddress} mapLink={o.storeMapLink} /> : null}
 
         {isSupplier ? <SupplierActions order={o} /> : null}
         {isSupplier ? <AssignControl order={o} /> : null}

@@ -5,7 +5,7 @@ import { decToMinor, decToString } from '../../lib/money';
 import type { Prisma } from '../../generated/prisma/client';
 
 export const orderDetailInclude = {
-  store: { select: { name: true } },
+  store: { select: { name: true, address: true, mapLink: true } },
   assignedTo: { select: { id: true, name: true } },
   items: { include: { product: { select: { name: true } } } },
   deliveries: { include: { items: true }, orderBy: { deliveredAt: 'asc' } },
@@ -51,6 +51,8 @@ export function toOrderDto(o: OrderRow): OrderDto {
     orderNumber: o.orderNumber,
     storeId: o.storeId,
     storeName: o.store.name,
+    storeAddress: o.store.address,
+    storeMapLink: o.store.mapLink,
     status: o.status,
     source: o.source,
     regular: o.scheduleId !== null,
@@ -101,7 +103,7 @@ export async function loadOrderDto(
 }
 
 export const orderListInclude = {
-  store: { select: { name: true } },
+  store: { select: { name: true, address: true, mapLink: true } },
   assignedTo: { select: { id: true, name: true } },
   items: { select: { quantity: true } },
   deliveries: { select: { items: { select: { deliveredQty: true } } } },
@@ -118,6 +120,8 @@ export function toOrderListItem(o: OrderListRow): OrderListItem {
     orderNumber: o.orderNumber,
     storeId: o.storeId,
     storeName: o.store.name,
+    storeAddress: o.store.address,
+    storeMapLink: o.store.mapLink,
     status: o.status,
     source: o.source,
     regular: o.scheduleId !== null,

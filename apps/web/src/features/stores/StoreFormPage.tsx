@@ -102,6 +102,7 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
       ownerName: existing?.ownerName ?? '',
       phone: existing?.phone ? formatPhone(existing.phone) : '',
       address: existing?.address ?? '',
+      mapLink: existing?.mapLink ?? '',
       notes: existing?.notes ?? '',
       creditLimit: existing?.creditLimit ?? '',
       openingBalance: '',
@@ -274,6 +275,15 @@ function StoreForm({ existing }: { existing?: StoreDetail }) {
               label="Address (optional)"
               error={errors.address?.message}
               {...register('address')}
+            />
+            <Field
+              label="Location (optional)"
+              inputMode="url"
+              autoComplete="off"
+              placeholder="Paste a Google Maps link"
+              hint="In Google Maps, open the shop → Share → Copy link, then paste it here. Staff can open it to find the shop."
+              error={errors.mapLink?.message}
+              {...register('mapLink')}
             />
             <Controller
               control={control}

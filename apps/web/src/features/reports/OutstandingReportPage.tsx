@@ -1,24 +1,52 @@
-import { formatPhone } from '@wd/shared';
-import { HandCoins, MessageCircle } from 'lucide-react';
+import { formatPhone, type OutstandingRow } from '@wd/shared';
+import { HandCoins, MessageCircle, SearchX } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
 import { Card, ListCard, ListRow } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorRetry } from '../../components/ui/LoadMore';
+import { Segmented } from '../../components/ui/Segmented';
+import { Sheet } from '../../components/ui/Sheet';
 import { ListSkeleton } from '../../components/ui/Skeleton';
+import { Spinner } from '../../components/ui/Spinner';
 import { useMoney, useTimezone } from '../../hooks/useMoney';
 import { errorMessage } from '../../services/api';
 import { downloadCsv } from '../../utils/csv';
 import { formatDate } from '../../utils/format';
 import { useSession } from '../auth/session';
-import { useOutstandingReport } from './api';
+import { StoreSearchBox } from '../stores/StorePicker';
+import { useDues, useOutstandingReport } from './api';
 import { CsvButton } from './ReportBits';
+import { reminderMessage } from './reminder';
 
-/** Who owes money, biggest first — with a one-tap WhatsApp reminder. */
+type Sort = 'amount' | 'name';
+
+/** Rows matching what's typed so far: client or owner name, or 3+ digits of the phone. */
+function matches(rows: OutstandingRow[], search: string): OutstandingRow[] {
+  const q = search.trim().toLowerCase();
+  if (!q) return rows;
+  const digits = q.replace(/\D/g, '');
+  return rows.filter(
+    (r) =>
+      r.storeName.toLowerCase().includes(q) ||
+      (r.ownerName?.toLowerCase().includes(q) ?? false) ||
+      (digits.length >= 3 && (r.phone?.includes(digits) ?? false)),
+  );
+}
+
+/** Who owes money, biggest first — with a one-tap WhatsApp reminder listing the unpaid bills. */
 export default function OutstandingReportPage() {
   const report = useOutstandingReport();
   const format = useMoney();
   const tz = useTimezone();
-  const { business } = useSession();
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<Sort>('amount');
+  const [reminding, setReminding] = useState<OutstandingRow | null>(null);
+
+  const rows = useMemo(() => {
+    const found = matches(report.data?.rows ?? [], search);
+    return sort === 'name' ? [...found].sort((a, b) => a.storeName.localeCompare(b.storeName)) : found;
+  }, [report.data, search, sort]);
 
   const exportCsv = () =>
     report.data &&
@@ -54,11 +82,21 @@ export default function OutstandingReportPage() {
                 {report.data.rows.length} client{report.data.rows.length === 1 ? '' : 's'}
               </p>
             </Card>
-            <ListCard>
-              {report.data.rows.map((r) => {
-                const wa = r.phone?.replace(/\D/g, '');
-                const message = `Hello from ${business.businessName}. Your water balance is ${format(r.balance)}. Please pay when convenient. Thank you!`;
-                return (
+            <StoreSearchBox value={search} onChange={setSearch} />
+            <Segmented
+              label="Sort"
+              value={sort}
+              onChange={setSort}
+              options={[
+                { value: 'amount', label: 'Most owed' },
+                { value: 'name', label: 'A–Z' },
+              ]}
+            />
+            {rows.length === 0 ? (
+              <EmptyState icon={<SearchX className="size-6" />} title="No client found" description={`Nobody owing money matches "${search.trim()}".`} />
+            ) : (
+              <ListCard>
+                {rows.map((r) => (
                   <div key={r.storeId} className="flex items-center">
                     <div className="min-w-0 flex-1">
                       <ListRow
@@ -68,24 +106,76 @@ export default function OutstandingReportPage() {
                         trailing={<span className="font-semibold text-bad tabular">{format(r.balance)}</span>}
                       />
                     </div>
-                    {wa ? (
-                      <a
-                        href={`https://wa.me/${wa}?text=${encodeURIComponent(message)}`}
-                        target="_blank"
-                        rel="noreferrer"
+                    {r.phone ? (
+                      <button
+                        type="button"
+                        onClick={() => setReminding(r)}
                         aria-label={`Send ${r.storeName} a payment reminder on WhatsApp`}
                         className="mr-2 flex size-11 shrink-0 items-center justify-center rounded-full text-brand-700 hover:bg-brand-50"
                       >
                         <MessageCircle className="size-5" />
-                      </a>
+                      </button>
                     ) : null}
                   </div>
-                );
-              })}
-            </ListCard>
+                ))}
+              </ListCard>
+            )}
           </>
         )}
       </PageBody>
+      <ReminderSheet row={reminding} onClose={() => setReminding(null)} />
     </>
+  );
+}
+
+/** Shows the reminder (with every unpaid bill) before it goes to WhatsApp. */
+function ReminderSheet({ row, onClose }: { row: OutstandingRow | null; onClose: () => void }) {
+  const dues = useDues(row?.storeId ?? null);
+  const format = useMoney();
+  const tz = useTimezone();
+  const { business } = useSession();
+
+  const message =
+    row && dues.data
+      ? reminderMessage(dues.data, {
+          businessName: business.businessName,
+          greet: row.ownerName?.trim() || row.storeName,
+          format,
+          formatDate: (iso) => formatDate(iso, tz),
+        })
+      : null;
+  const wa = row?.phone?.replace(/\D/g, '');
+
+  return (
+    <Sheet open={row !== null} onClose={onClose} title="Payment reminder">
+      {dues.isPending ? (
+        <div className="flex justify-center py-8">
+          <Spinner />
+        </div>
+      ) : dues.isError ? (
+        <ErrorRetry message={errorMessage(dues.error)} onRetry={() => void dues.refetch()} />
+      ) : message && wa ? (
+        <>
+          <p className="mb-2 text-sm text-muted">To {row?.storeName}</p>
+          <pre
+            aria-label="Reminder message"
+            className="max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-line bg-canvas p-3 font-sans text-[15px] text-ink-2"
+          >
+            {/* WhatsApp shows *…* as bold; here the stars would only be noise. */}
+            {message.replaceAll('*', '')}
+          </pre>
+          <a
+            href={`https://wa.me/${wa}?text=${encodeURIComponent(message)}`}
+            target="_blank"
+            rel="noreferrer"
+            onClick={onClose}
+            className="mt-4 flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-brand-700 px-5 text-base font-semibold text-white hover:bg-brand-800"
+          >
+            <MessageCircle className="size-5" aria-hidden />
+            Send on WhatsApp
+          </a>
+        </>
+      ) : null}
+    </Sheet>
   );
 }

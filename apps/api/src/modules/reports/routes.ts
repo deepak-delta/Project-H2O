@@ -108,9 +108,9 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
   app.get('/api/reports/outstanding', async (req): Promise<OutstandingReport> => {
     const { supplierId } = requireSupplier(req);
     const rows = await db.$queryRaw<
-      { storeId: string; storeName: string; phone: string | null; balance: unknown; cans: unknown; lastDeliveryAt: Date | null; lastPaymentAt: Date | null }[]
+      { storeId: string; storeName: string; ownerName: string | null; phone: string | null; balance: unknown; cans: unknown; lastDeliveryAt: Date | null; lastPaymentAt: Date | null }[]
     >`
-      SELECT s.id AS "storeId", s.name AS "storeName", s.phone, t.balance,
+      SELECT s.id AS "storeId", s.name AS "storeName", s."ownerName", s.phone, t.balance,
              t.cans, t."lastDeliveryAt",
              (SELECT MAX(p."paymentDate") FROM "Payment" p WHERE p."supplierId" = ${supplierId} AND p."storeId" = s.id AND p."reversedAt" IS NULL) AS "lastPaymentAt"
       FROM "ClientTotals" t
@@ -126,6 +126,7 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
       return {
         storeId: r.storeId,
         storeName: r.storeName,
+        ownerName: r.ownerName,
         phone: r.phone,
         balance: fromMinor(balance),
         cans: Number(r.cans),

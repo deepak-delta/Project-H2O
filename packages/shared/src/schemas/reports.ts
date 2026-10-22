@@ -114,18 +114,22 @@ export interface OutstandingRow {
 }
 
 /**
- * What a client owes, bill by bill. Payments count against the oldest bills first, so what's
- * left unpaid is the newest bills; the oldest of those may be partly paid.
+ * What a client owes, order by order, since their account was last fully cleared. Each order
+ * shows its own bill and what was paid for it; money not paid for a listed order (payments
+ * taken on the client's page, extra paid on an order) is listed separately, never moved onto
+ * another order. broughtForward + Σ orders.due − Σ credits.amount = balance.
  */
 export interface DuesBreakdown {
   storeId: string;
   storeName: string;
   phone: string | null;
   balance: string;
-  /** Owed from before these bills (old notebook balance, adjustments). */
+  /** Owed from before (old notebook balance, adjustments); negative = advance paid earlier. */
   broughtForward: string;
-  /** Oldest first. */
-  items: { orderId: string; orderNumber: number; date: string; cans: number; billed: string; due: string }[];
+  /** Orders not fully paid, oldest first. due = billed − paid. */
+  orders: { orderId: string; orderNumber: number; date: string; cans: number; billed: string; paid: string; due: string }[];
+  /** Money that lowers the balance but isn't for a listed order, oldest first. */
+  credits: { kind: 'PAYMENT' | 'EXTRA'; date: string; amount: string; orderNumber: number | null }[];
 }
 
 export interface OutstandingReport {

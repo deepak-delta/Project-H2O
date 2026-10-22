@@ -1,7 +1,9 @@
-import { addMoney, type DuesBreakdown } from '@wd/shared';
+import { addMoney, compareMoney, subtractMoney, type DuesBreakdown } from '@wd/shared';
 
-/** Bills listed one by one; anything older is added to the earlier balance line. */
-export const MAX_REMINDER_LINES = 25;
+/** Orders listed one by one; older unpaid orders are added up on one line. */
+export const MAX_REMINDER_ORDERS = 25;
+/** Payments listed one by one; older ones are added up on one line. */
+export const MAX_REMINDER_CREDITS = 10;
 
 interface ReminderOptions {
   businessName: string;
@@ -11,22 +13,46 @@ interface ReminderOptions {
   formatDate: (iso: string) => string;
 }
 
-/** The WhatsApp reminder: what's owed, bill by bill, oldest first, and the total. */
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * The WhatsApp reminder: every order not fully paid with its own bill, paid and due, then
+ * money paid that isn't for one of those orders on separate lines, and the total.
+ */
 export function reminderMessage(dues: DuesBreakdown, { businessName, greet, format, formatDate }: ReminderOptions): string {
-  const folded = dues.items.slice(0, Math.max(0, dues.items.length - MAX_REMINDER_LINES));
-  const listed = dues.items.slice(folded.length);
-  const earlier = addMoney(dues.broughtForward, ...folded.map((i) => i.due));
+  const minus = (amount: string) => `−${format(amount)}`;
+  const olderOrders = dues.orders.slice(0, Math.max(0, dues.orders.length - MAX_REMINDER_ORDERS));
+  const orders = dues.orders.slice(olderOrders.length);
+  const olderCredits = dues.credits.slice(0, Math.max(0, dues.credits.length - MAX_REMINDER_CREDITS));
+  const credits = dues.credits.slice(olderCredits.length);
 
   const lines = [`Hello ${greet}, this is ${businessName}.`, '', `Your water bill: *${format(dues.balance)}* due.`];
-  if (listed.length > 0) {
-    lines.push('', 'Unpaid deliveries:');
-    for (const i of listed) {
-      const cans = i.cans > 0 ? ` · ${i.cans} can${i.cans === 1 ? '' : 's'}` : '';
-      const part = i.due === i.billed ? '' : ` (${format(i.billed)} bill, part paid)`;
-      lines.push(`• ${formatDate(i.date)} · Order #${i.orderNumber}${cans} · ${format(i.due)}${part}`);
+
+  if (orders.length > 0 || olderOrders.length > 0) {
+    lines.push('', 'Unpaid orders:');
+    if (olderOrders.length > 0) {
+      lines.push(`• ${plural(olderOrders.length, 'earlier order')} · Due ${format(addMoney(...olderOrders.map((o) => o.due)))}`);
+    }
+    for (const o of orders) {
+      const cans = o.cans > 0 ? ` · ${plural(o.cans, 'can')}` : '';
+      lines.push(`• ${formatDate(o.date)} · Order #${o.orderNumber}${cans}`, `   Bill ${format(o.billed)} · Paid ${format(o.paid)} · Due ${format(o.due)}`);
     }
   }
-  if (earlier !== '0.00') lines.push(listed.length > 0 ? `• Earlier balance · ${format(earlier)}` : `Earlier balance: ${format(earlier)}`);
+
+  const other: string[] = [];
+  const earlier = compareMoney(dues.broughtForward, '0.00');
+  if (earlier > 0) other.push(`Earlier balance: ${format(dues.broughtForward)}`);
+  if (earlier < 0) other.push(`Advance paid earlier: ${minus(subtractMoney('0.00', dues.broughtForward))}`);
+  if (olderCredits.length > 0) other.push(`Earlier payments: ${minus(addMoney(...olderCredits.map((c) => c.amount)))}`);
+  for (const c of credits) {
+    other.push(
+      c.kind === 'EXTRA'
+        ? `Extra paid on order #${c.orderNumber ?? ''}: ${minus(c.amount)}`
+        : `Paid on ${formatDate(c.date)}: ${minus(c.amount)}`,
+    );
+  }
+  if (other.length > 0) lines.push('', ...other);
+
   lines.push('', `*Total due: ${format(dues.balance)}*`, 'Please pay when convenient. Thank you!');
   return lines.join('\n');
 }

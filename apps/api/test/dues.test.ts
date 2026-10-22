@@ -27,35 +27,78 @@ const dues = async (storeId = biz.storeId) => {
   return res.json<{
     balance: string;
     broughtForward: string;
-    items: { orderId: string; orderNumber: number; cans: number; billed: string; due: string }[];
+    orders: { orderId: string; orderNumber: number; cans: number; billed: string; paid: string; due: string }[];
+    credits: { kind: 'PAYMENT' | 'EXTRA'; amount: string; orderNumber: number | null }[];
   }>();
 };
+const cents = (v: string) => Math.round(Number(v) * 100);
+/** broughtForward + Σ due − Σ credits must equal the balance. */
+const addsUp = (d: Awaited<ReturnType<typeof dues>>) =>
+  expect(cents(d.broughtForward) + d.orders.reduce((s, o) => s + cents(o.due), 0) - d.credits.reduce((s, c) => s + cents(c.amount), 0)).toBe(cents(d.balance));
 
-describe('what a client owes, bill by bill', () => {
+describe('what a client owes, order by order', () => {
   it('is empty when nothing is owed', async () => {
     await sell(2, '100');
-    expect(await dues()).toMatchObject({ balance: '0.00', broughtForward: '0.00', items: [] });
+    expect(await dues()).toMatchObject({ balance: '0.00', broughtForward: '0.00', orders: [], credits: [] });
   });
 
-  it('counts payments against the oldest bills first', async () => {
+  it('shows each order with its own bill and what was paid for it', async () => {
+    const paidPart = await sell(10, '200'); // ₹500, ₹200 at the door
+    await sell(2, '100'); // paid in full: left out
+    const unpaid = await sell(4, '0'); // ₹200
+    const d = await dues();
+    expect(d.orders).toEqual([
+      expect.objectContaining({ orderId: paidPart.id, cans: 10, billed: '500.00', paid: '200.00', due: '300.00' }),
+      expect.objectContaining({ orderId: unpaid.id, cans: 4, billed: '200.00', paid: '0.00', due: '200.00' }),
+    ]);
+    expect(d.credits).toEqual([]);
+    expect(d.balance).toBe('500.00');
+    addsUp(d);
+  });
+
+  it("keeps a payment taken on the client's page on its own line, not inside an order", async () => {
     const a = await sell(10, '0'); // ₹500
     const b = await sell(6, '0'); // ₹300
-    const c = await sell(4, '0'); // ₹200
-    expect((await pay('600')).statusCode).toBe(201); // clears a, ₹100 of b
-
+    expect((await pay('600')).statusCode).toBe(201);
     const d = await dues();
-    expect(d.balance).toBe('400.00');
-    expect(d.broughtForward).toBe('0.00');
-    expect(d.items.map((i) => i.orderId)).not.toContain(a.id);
-    expect(d.items).toEqual([
-      expect.objectContaining({ orderId: b.id, orderNumber: b.orderNumber, cans: 6, billed: '300.00', due: '200.00' }),
-      expect.objectContaining({ orderId: c.id, orderNumber: c.orderNumber, cans: 4, billed: '200.00', due: '200.00' }),
+    expect(d.orders).toEqual([
+      expect.objectContaining({ orderId: a.id, billed: '500.00', paid: '0.00', due: '500.00' }),
+      expect.objectContaining({ orderId: b.id, billed: '300.00', paid: '0.00', due: '300.00' }),
     ]);
+    expect(d.credits).toEqual([expect.objectContaining({ kind: 'PAYMENT', amount: '600.00', orderNumber: null })]);
+    expect(d.balance).toBe('200.00');
+    addsUp(d);
   });
 
-  it('shows what was left unpaid at the delivery', async () => {
-    const o = await sell(10, '200');
-    expect((await dues()).items).toEqual([expect.objectContaining({ orderId: o.id, billed: '500.00', due: '300.00' })]);
+  it('never uses extra paid on one order to cover another', async () => {
+    const owed = await sell(4, '0'); // ₹200 owed
+    const over = await sell(10, '600'); // ₹500 bill, ₹600 paid
+    const d = await dues();
+    expect(d.orders).toEqual([expect.objectContaining({ orderId: owed.id, due: '200.00' })]);
+    expect(d.orders.map((o) => o.orderId)).not.toContain(over.id);
+    expect(d.credits).toEqual([expect.objectContaining({ kind: 'EXTRA', amount: '100.00', orderNumber: over.orderNumber })]);
+    expect(d.balance).toBe('100.00');
+    addsUp(d);
+  });
+
+  it('starts after the account was last cleared', async () => {
+    const old = await sell(10, '0');
+    await pay('500'); // all clear
+    const fresh = await sell(4, '0');
+    const d = await dues();
+    expect(d.orders.map((o) => o.orderId)).toEqual([fresh.id]);
+    expect(d.orders.map((o) => o.orderId)).not.toContain(old.id);
+    expect(d.credits).toEqual([]);
+    expect(d).toMatchObject({ balance: '200.00', broughtForward: '0.00' });
+  });
+
+  it('carries an advance from before as money off', async () => {
+    await sell(10, '600'); // ₹100 advance, account below zero
+    const next = await sell(4, '0');
+    const d = await dues();
+    expect(d).toMatchObject({ balance: '100.00', broughtForward: '-100.00' });
+    expect(d.orders).toEqual([expect.objectContaining({ orderId: next.id, due: '200.00' })]);
+    addsUp(d);
   });
 
   it('puts an old notebook balance in "brought forward"', async () => {
@@ -69,7 +112,7 @@ describe('what a client owes, bill by bill', () => {
     await sell(2, '0', {}, storeId);
     const d = await dues(storeId);
     expect(d).toMatchObject({ balance: '250.00', broughtForward: '150.00' });
-    expect(d.items).toEqual([expect.objectContaining({ billed: '100.00', due: '100.00', cans: 2 })]);
+    expect(d.orders).toEqual([expect.objectContaining({ billed: '100.00', due: '100.00', cans: 2 })]);
   });
 
   it('bills a discount net and a damaged-can charge in full', async () => {
@@ -80,31 +123,45 @@ describe('what a client owes, bill by bill', () => {
     );
     expect(damaged.statusCode).toBe(201);
     const d = await dues();
-    expect(d.items).toEqual([
+    expect(d.orders).toEqual([
       expect.objectContaining({ orderId: o.id, billed: '180.00', due: '180.00' }),
       expect.objectContaining({ orderId: damaged.json().order.id, billed: '250.00', due: '250.00' }),
     ]);
     expect(d.balance).toBe('430.00');
   });
 
-  it('leaves out a cancelled delivery', async () => {
+  it('leaves out a cancelled delivery; money kept from it shows as extra paid', async () => {
     const kept = await sell(2, '0');
     const cancelled = await sell(5, '0');
     expect((await biz.client.post(`/api/orders/${cancelled.id}/cancel`, { reason: 'Wrong shop' })).statusCode).toBe(200);
+    expect((await dues()).orders.map((o) => o.orderId)).toEqual([kept.id]);
+
+    const paidThenCancelled = await sell(1, '50');
+    await biz.client.post(`/api/orders/${paidThenCancelled.id}/cancel`, {});
     const d = await dues();
-    expect(d.items.map((i) => i.orderId)).toEqual([kept.id]);
-    expect(d.balance).toBe('100.00');
+    expect(d.credits).toEqual([expect.objectContaining({ kind: 'EXTRA', amount: '50.00', orderNumber: paidThenCancelled.orderNumber })]);
+    addsUp(d);
+  });
+
+  it('a reversed payment no longer counts', async () => {
+    await sell(10, '0');
+    const p = await pay('200');
+    await biz.client.post(`/api/payments/${p.json().payment.id}/reverse`, { reason: 'Bounced' });
+    const d = await dues();
+    expect(d.credits).toEqual([]);
+    expect(d.balance).toBe('500.00');
+    addsUp(d);
   });
 
   it('always adds up to the balance', async () => {
     await sell(3, '20');
     await sell(7, '0', { discount: '15' });
     await pay('90');
-    await sell(1, '50');
+    await sell(1, '80');
     await sell(9, '100');
     const d = await dues();
-    const sum = d.items.reduce((s, i) => s + Math.round(Number(i.due) * 100), Math.round(Number(d.broughtForward) * 100));
-    expect(sum).toBe(Math.round(Number((await storeDetail(biz.client, biz.storeId)).balance) * 100));
+    addsUp(d);
+    expect(d.balance).toBe((await storeDetail(biz.client, biz.storeId)).balance);
   });
 
   it('is for the owner only, and only their own clients', async () => {

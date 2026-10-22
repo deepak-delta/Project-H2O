@@ -31,12 +31,13 @@ test('who owes money: search letter by letter, and a reminder listing every unpa
     phone: randomPhone(),
     prices: [{ productId, price: '50' }],
   });
-  const credit = (id: string, quantity: number) =>
-    api(page.request, 'POST', '/api/orders/quick-sale', { clientId: crypto.randomUUID(), storeId: id, items: [{ productId, quantity }], payment: { amount: '0', method: 'CASH' } });
-  await credit(storeId, 10); // #1 ₹500
+  const credit = (id: string, quantity: number, paid = '0') =>
+    api(page.request, 'POST', '/api/orders/quick-sale', { clientId: crypto.randomUUID(), storeId: id, items: [{ productId, quantity }], payment: { amount: paid, method: 'CASH' } });
+  await credit(storeId, 10, '200'); // #1 ₹500, ₹200 paid at the door
   await credit(storeId, 4); // #2 ₹200
-  await api(page.request, 'POST', '/api/payments', { clientId: crypto.randomUUID(), storeId, amount: '300', method: 'CASH' }); // pays most of #1
-  await credit(lakshmi.id, 2); // #3 ₹100
+  await credit(storeId, 2, '100'); // #3 paid in full: not in the reminder
+  await api(page.request, 'POST', '/api/payments', { clientId: crypto.randomUUID(), storeId, amount: '100', method: 'CASH' }); // not for an order
+  await credit(lakshmi.id, 2); // #4 ₹100
 
   await page.goto('/reports/outstanding');
   await expect(page.getByRole('heading', { name: 'Who owes money' })).toBeVisible();
@@ -65,12 +66,14 @@ test('who owes money: search letter by letter, and a reminder listing every unpa
   await page.getByRole('button', { name: 'Send Sri Ganesh Stores a payment reminder on WhatsApp' }).click();
   const message = page.getByLabel('Reminder message');
   await expect(message).toContainText('Hello Ganesh, this is Aqua Fresh.');
-  await expect(message).toContainText('Order #1 · 10 cans · ₹200 (₹500 bill, part paid)');
-  await expect(message).toContainText('Order #2 · 4 cans · ₹200');
+  await expect(message).toContainText(/Order #1 · 10 cans\s+Bill ₹500 · Paid ₹200 · Due ₹300/);
+  await expect(message).toContainText(/Order #2 · 4 cans\s+Bill ₹200 · Paid ₹0 · Due ₹200/);
+  await expect(message).not.toContainText('Order #3');
+  await expect(message).toContainText(/Paid on .+: −₹100/);
   await expect(message).toContainText('Total due: ₹400');
   const href = await page.getByRole('link', { name: 'Send on WhatsApp' }).getAttribute('href');
   expect(href).toMatch(/^https:\/\/wa\.me\/\d+\?text=/);
-  expect(decodeURIComponent(href ?? '')).toContain('Order #2 · 4 cans · ₹200');
+  expect(decodeURIComponent(href ?? '')).toContain('Bill ₹200 · Paid ₹0 · Due ₹200');
   await expectNoHorizontalScroll(page);
   assertNoErrors();
 });

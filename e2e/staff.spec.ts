@@ -145,12 +145,14 @@ test('owner adds an "Other" client, then creates an order for later and gives it
   await expectAccessible(page);
   await page.getByRole('button', { name: 'Give to Raju Kumar · 5 cans' }).click();
   await expect(page.getByText(/Order #\d+ · Tech Park/)).toBeVisible();
-  await expect(page.getByText('Given to Raju Kumar, who has been notified.')).toBeVisible();
+  // Raju hasn't turned on notifications on any phone, so the owner is told to call.
+  await expect(page.getByText('Given to Raju Kumar. Their notifications are off, so call to tell them.')).toBeVisible();
   assertNoErrors();
 
   // Tomorrow's order isn't on Raju's list today; it shows on the owner's order as his.
   await page.getByRole('button', { name: 'View order' }).click();
-  await expect(page.getByLabel('Delivered by')).toHaveValue(/.+/);
+  await expect(page.getByLabel('Assigned to')).toHaveValue(/.+/);
+  await expect(page.getByText("Raju Kumar's notifications are off.", { exact: false })).toBeVisible();
   await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
 
   // An order for today does show up for him.
@@ -164,7 +166,7 @@ test('owner adds an "Other" client, then creates an order for later and gives it
   await page.getByRole('textbox', { name: '20L can' }).fill('2');
   await page.getByLabel('Delivered by').selectOption({ label: 'Raju Kumar' });
   await page.getByRole('button', { name: 'Give to Raju Kumar · 2 cans' }).click();
-  await expect(page.getByText('Given to Raju Kumar, who has been notified.')).toBeVisible();
+  await expect(page.getByText('Given to Raju Kumar. Their notifications are off, so call to tell them.')).toBeVisible();
   const after = await api<{ assignedOrders: { storeName: string; totalQuantity: number }[] }>(staffSide.request, 'GET', '/api/staff/today');
   expect(after.assignedOrders).toEqual([expect.objectContaining({ storeName: 'Tech Park', totalQuantity: 2 })]);
   await staffSide.close();

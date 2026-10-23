@@ -68,8 +68,12 @@ test('orders: choose several and give them to staff in one go', async ({ page })
   await page.getByRole('button', { name: new RegExp(`#${b.orderNumber} ·`) }).click();
   await expectNoHorizontalScroll(page);
   await page.getByRole('button', { name: 'Give 2 to staff' }).click();
+  await expect(page.getByRole('dialog', { name: 'Give 2 orders to' })).toContainText('Notifications off on their phone');
   await page.getByRole('dialog', { name: 'Give 2 orders to' }).getByRole('button', { name: /Raju Kumar/ }).click();
-  await expect(page.getByText("2 orders given to Raju Kumar. They've been told.")).toBeVisible();
+  // Raju hasn't turned on notifications, so the owner is told to call instead.
+  await expect(page.getByText('2 orders given to Raju Kumar. Their notifications are off, so call to tell them.')).toBeVisible();
+  await expect(page.getByRole('link', { name: new RegExp(`#${a.orderNumber} ·.*Assigned to Raju Kumar`) })).toBeVisible();
+  await expect(page.getByRole('link', { name: new RegExp(`#${c.orderNumber} ·.*Not assigned yet`) })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Select', exact: true })).toBeVisible();
   expect([await assignedTo(a.id), await assignedTo(b.id), await assignedTo(c.id)]).toEqual(['Raju Kumar', 'Raju Kumar', null]);
 
@@ -79,7 +83,7 @@ test('orders: choose several and give them to staff in one go', async ({ page })
   await page.locator('section').nth(2).getByRole('button', { name: 'Select', exact: true }).click();
   await page.getByRole('button', { name: 'Give 1 to staff' }).click();
   await page.getByRole('dialog', { name: 'Give 1 order to' }).getByRole('button', { name: /Raju Kumar/ }).click();
-  await expect(page.getByText("1 order given to Raju Kumar. They've been told.")).toBeVisible();
+  await expect(page.getByText('1 order given to Raju Kumar. Their notifications are off, so call to tell them.')).toBeVisible();
   expect(await assignedTo(c.id)).toBe('Raju Kumar');
 
   await page.getByRole('button', { name: 'Select', exact: true }).click();

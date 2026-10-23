@@ -1,5 +1,5 @@
 import { formatPhone, normalizePhone, type StaffDto } from '@wd/shared';
-import { MessageCircle, Plus, UserRound } from 'lucide-react';
+import { BellOff, MessageCircle, Plus, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
 import { Badge } from '../../components/ui/Badge';
@@ -59,6 +59,13 @@ export default function StaffPage() {
                   s.active
                     ? `${s.today.deliveries} deliver${s.today.deliveries === 1 ? 'y' : 'ies'} today · ${s.today.cansDelivered} cans`
                     : formatPhone(s.phone)
+                }
+                note={
+                  s.active && !s.canNotify ? (
+                    <span className="inline-flex items-center gap-1 text-warn">
+                      <BellOff className="size-3.5 shrink-0" aria-hidden /> Notifications off on their phone
+                    </span>
+                  ) : undefined
                 }
                 trailing={
                   s.active ? (

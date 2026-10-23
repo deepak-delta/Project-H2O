@@ -1,3 +1,4 @@
+import type { OrderListItem } from '@wd/shared';
 import { CheckSquare, Square, UserRound, UsersRound } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { ListCard, ListRow } from '../../components/ui/Card';
@@ -6,6 +7,20 @@ import { Spinner } from '../../components/ui/Spinner';
 import { errorMessage } from '../../services/api';
 import { toast } from '../../stores/toast';
 import { useBulkAssign, useStaffList } from '../staff/api';
+
+const STILL_TO_DELIVER = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY', 'PARTIALLY_DELIVERED'];
+
+/** The owner's line on an order still to deliver: who has it, or that nobody does yet. */
+export function AssignedNote({ order }: { order: OrderListItem }) {
+  if (!STILL_TO_DELIVER.includes(order.status)) return null;
+  return order.assignedTo ? (
+    <span className="inline-flex items-center gap-1 font-medium text-ink-2">
+      <UserRound className="size-3.5 shrink-0" aria-hidden /> Assigned to {order.assignedTo.name}
+    </span>
+  ) : (
+    <span className="text-muted">Not assigned yet</span>
+  );
+}
 
 /** The tick box drawn at the start of a row while choosing orders. */
 export function SelectMark({ checked }: { checked: boolean }) {
@@ -50,14 +65,17 @@ export function AssignSheet({ orderIds, open, onClose, onDone }: { orderIds: str
   const active = staff.data?.filter((s) => s.active) ?? [];
   const n = orderIds.length;
 
-  const give = (staffId: string | null, name: string) =>
+  const give = (staffId: string | null, name: string, canNotify = true) =>
     assign.mutate(
       { orderIds, staffId },
       {
         onSuccess: (r) => {
           const what = `${r.assigned} order${r.assigned === 1 ? '' : 's'}`;
           const skipped = r.skipped ? ` ${r.skipped} already delivered or cancelled, left as they were.` : '';
-          toast.success(staffId ? `${what} given to ${name}. They've been told.${skipped}` : `${what} back with you.${skipped}`);
+          if (!staffId) toast.success(`${what} back with you.${skipped}`);
+          else if (canNotify) toast.success(`${what} given to ${name}. They've been told.${skipped}`);
+          // No phone of theirs gets notifications: say so, rather than claim they know.
+          else toast.success(`${what} given to ${name}. Their notifications are off, so call to tell them.${skipped}`);
           onDone();
         },
         onError: (err) => toast.error(errorMessage(err, 'The orders were not given out. Please try again.')),
@@ -73,7 +91,14 @@ export function AssignSheet({ orderIds, open, onClose, onDone }: { orderIds: str
       ) : (
         <ListCard>
           {active.map((s) => (
-            <ListRow key={s.id} title={s.name} leading={<UserRound className="size-5 text-muted" aria-hidden />} onClick={() => give(s.id, s.name)} chevron />
+            <ListRow
+              key={s.id}
+              title={s.name}
+              subtitle={s.canNotify ? undefined : 'Notifications off on their phone'}
+              leading={<UserRound className="size-5 text-muted" aria-hidden />}
+              onClick={() => give(s.id, s.name, s.canNotify)}
+              chevron
+            />
           ))}
           <ListRow title="Me (owner)" subtitle="Take them back from staff" leading={<UserRound className="size-5 text-muted" aria-hidden />} onClick={() => give(null, 'you')} chevron />
         </ListCard>

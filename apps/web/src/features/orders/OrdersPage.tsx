@@ -16,7 +16,7 @@ import { formatDate, formatDateTime, formatTime } from '../../utils/format';
 import { useSession } from '../auth/session';
 import { StoreSearchBox } from '../stores/StorePicker';
 import { useOrders, useWeekPlan, type OrderListParams } from './api';
-import { AssignSheet, SelectionBar, SelectMark } from './BulkAssign';
+import { AssignedNote, AssignSheet, SelectionBar, SelectMark } from './BulkAssign';
 import { matchesSearch, WeekView } from './WeekView';
 
 type Tab = 'today' | 'open' | 'week' | 'all';
@@ -79,10 +79,9 @@ export default function OrdersPage() {
         : tab === 'today'
           ? formatTime(o.orderDate, tz)
           : formatDateTime(o.orderDate, tz);
-    const who = isSupplier && o.assignedTo && OPEN.includes(o.status) ? ` · ${o.assignedTo.name}` : '';
     // Early in the line: on a narrow phone the end gets cut off.
     const regular = isSupplier && o.regular ? ' · Regular' : '';
-    return `#${o.orderNumber}${regular} · ${o.totalQuantity} can${o.totalQuantity === 1 ? '' : 's'} · ${when}${who}`;
+    return `#${o.orderNumber}${regular} · ${o.totalQuantity} can${o.totalQuantity === 1 ? '' : 's'} · ${when}`;
   };
 
   return (
@@ -158,6 +157,7 @@ export default function OrdersPage() {
                       : { to: `/orders/${o.id}` })}
                     title={isSupplier ? o.storeName : format(o.total)}
                     subtitle={subtitle(o)}
+                    note={isSupplier ? <AssignedNote order={o} /> : undefined}
                     trailing={
                       <span className="flex flex-col items-end gap-1">
                         {isSupplier ? <span className="font-semibold text-ink tabular">{format(o.total)}</span> : null}

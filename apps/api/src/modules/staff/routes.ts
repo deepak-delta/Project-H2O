@@ -20,13 +20,18 @@ type StaffRow = { id: string; name: string; phone: string; active: boolean; crea
 /** The owner's view of a member of staff: details plus today's totals (no activity list). */
 async function toStaffDto(db: Db, supplierId: string, u: StaffRow, day?: { start: Date; end: Date }): Promise<StaffDto> {
   const range = day ?? zonedDayRange((await getBusinessSettings(db, supplierId)).timezone);
-  const today = await staffDayTotals(db, supplierId, u.id, range);
+  const [today, webPush, nativePush] = await Promise.all([
+    staffDayTotals(db, supplierId, u.id, range),
+    db.pushSubscription.count({ where: { userId: u.id } }),
+    db.nativePushToken.count({ where: { userId: u.id } }),
+  ]);
   return {
     id: u.id,
     name: u.name,
     phone: u.phone,
     active: u.active,
     createdAt: u.createdAt.toISOString(),
+    canNotify: webPush + nativePush > 0,
     today: { deliveries: today.deliveries, cansDelivered: today.cansDelivered, collected: today.collected, expenses: today.expenses, cashInHand: today.cashInHand },
   };
 }

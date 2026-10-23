@@ -6,6 +6,7 @@ import { ErrorRetry } from '../../components/ui/LoadMore';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useSession } from '../../features/auth/session';
 import { AddEntrySheet } from '../../features/cashflow/AddEntrySheet';
+import { NotificationNudge } from '../../features/notifications/NotificationNudge';
 import { useMyDay } from '../../features/staff/api';
 import { StaffDay } from '../../features/staff/StaffDay';
 import { errorMessage } from '../../services/api';
@@ -31,6 +32,7 @@ export default function StaffHomePage() {
         }
       />
       <PageBody>
+        <NotificationNudge />
         {day.isPending ? (
           <div className="space-y-4" aria-busy>
             <Skeleton className="h-24 w-full" />

@@ -24,6 +24,8 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
 interface ListRowProps {
   title: ReactNode;
   subtitle?: ReactNode;
+  /** A third line, for one key fact (e.g. who an order is assigned to). */
+  note?: ReactNode;
   leading?: ReactNode;
   trailing?: ReactNode;
   to?: string;
@@ -33,15 +35,31 @@ interface ListRowProps {
 }
 
 /** Mobile list row (min 56px). Renders as a link, a button, or plain content. */
-export function ListRow({ title, subtitle, leading, trailing, to, onClick, chevron, className }: ListRowProps) {
+export function ListRow({ title, subtitle, note, leading, trailing, to, onClick, chevron, className }: ListRowProps) {
   const content = (
     <>
       {leading ? <span className="shrink-0">{leading}</span> : null}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-medium text-ink">{title}</span>
-        {subtitle ? <span className="block truncate text-sm text-muted">{subtitle}</span> : null}
-      </span>
-      {trailing ? <span className="shrink-0 text-right">{trailing}</span> : null}
+      {note ? (
+        // The note runs under the trailing column too, so a name there isn't cut short.
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-3">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-medium text-ink">{title}</span>
+              {subtitle ? <span className="block truncate text-sm text-muted">{subtitle}</span> : null}
+            </span>
+            {trailing ? <span className="shrink-0 text-right">{trailing}</span> : null}
+          </span>
+          <span className="mt-0.5 block truncate text-sm">{note}</span>
+        </span>
+      ) : (
+        <>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-medium text-ink">{title}</span>
+            {subtitle ? <span className="block truncate text-sm text-muted">{subtitle}</span> : null}
+          </span>
+          {trailing ? <span className="shrink-0 text-right">{trailing}</span> : null}
+        </>
+      )}
       {chevron || to ? <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden /> : null}
     </>
   );

@@ -57,7 +57,8 @@ export function ScheduleOrderForm({
     const price = priceOf(p.id) ?? (validNew(p.id) ? newPrices[p.id] : null);
     return sum + (price ? lineTotalMinor(toMinor(price), quantities[p.id] ?? 0) : 0);
   }, 0);
-  const staffName = activeStaff.find((s) => s.id === assignee)?.name ?? null;
+  const assigned = activeStaff.find((s) => s.id === assignee);
+  const staffName = assigned?.name ?? null;
 
   if (placed) {
     return (
@@ -71,7 +72,11 @@ export function ScheduleOrderForm({
             </p>
             <p className="mt-1 text-[15px] text-muted">
               {totalCans} can{totalCans === 1 ? '' : 's'} for {when}.{' '}
-              {staffName ? `Given to ${staffName}, who has been notified.` : "You'll deliver it."}
+              {!staffName
+                ? "You'll deliver it."
+                : assigned?.canNotify
+                  ? `Given to ${staffName}, who has been notified.`
+                  : `Given to ${staffName}. Their notifications are off, so call to tell them.`}
               {placed.id ? '' : " It will be sent when you're back online."}
             </p>
           </Card>

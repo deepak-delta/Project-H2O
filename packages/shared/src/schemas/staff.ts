@@ -44,6 +44,8 @@ export interface StaffDto {
   phone: string;
   active: boolean;
   createdAt: string;
+  /** A phone of theirs is registered for notifications (else they won't hear about new orders). */
+  canNotify: boolean;
   /** Today's totals for the owner's list. */
   today: Pick<StaffTodayDto, 'deliveries' | 'cansDelivered' | 'collected' | 'expenses' | 'cashInHand'>;
 }

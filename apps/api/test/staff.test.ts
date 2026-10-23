@@ -482,3 +482,12 @@ describe('giving many orders to staff at once', () => {
     expect((await ctx.db.order.findUniqueOrThrow({ where: { id: mine.id } })).assignedToId).toBeNull();
   });
 });
+
+describe('can staff be notified?', () => {
+  it('shows the owner whether a phone of theirs gets notifications', async () => {
+    const list = async () => (await biz.client.get('/api/staff')).json<{ id: string; canNotify: boolean }[]>().find((s) => s.id === staffId);
+    expect(await list()).toMatchObject({ canNotify: false });
+    await staff.post('/api/push/subscribe', { endpoint: 'https://push.example.com/raju-can', keys: { p256dh: 'BKeyKeyKeyKeyKeyKeyKey', auth: 'authauthauth' } });
+    expect(await list()).toMatchObject({ canNotify: true });
+  });
+});

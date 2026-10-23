@@ -6,7 +6,7 @@ import { Card, ListCard, ListRow } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { useMoney, useTimezone } from '../../hooks/useMoney';
 import { formatDate } from '../../utils/format';
-import { SelectMark } from './BulkAssign';
+import { AssignedNote, SelectMark } from './BulkAssign';
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -72,12 +72,8 @@ export function WeekView({ plan, search, selection }: { plan: WeekPlan; search: 
       key={o.id}
       {...rowAction(o)}
       title={o.storeName}
-      subtitle={[
-        `#${o.orderNumber}${o.regular ? ' · Regular' : ''} · ${plural(o.totalQuantity, 'can')}`,
-        o.assignedTo?.name ?? null,
-      ]
-        .filter(Boolean)
-        .join(' · ')}
+      subtitle={`#${o.orderNumber}${o.regular ? ' · Regular' : ''} · ${plural(o.totalQuantity, 'can')}`}
+      note={<AssignedNote order={o} />}
       trailing={
         <span className="flex flex-col items-end gap-1">
           <span className="font-semibold text-ink tabular">{format(o.total)}</span>
@@ -99,6 +95,7 @@ export function WeekView({ plan, search, selection }: { plan: WeekPlan; search: 
                 {...rowAction(o)}
                 title={o.storeName}
                 subtitle={`#${o.orderNumber} · ${plural(o.totalQuantity, 'can')} · was due ${formatDate(o.deliveryDate ?? o.orderDate, tz)}`}
+                note={<AssignedNote order={o} />}
                 trailing={<Badge tone="bad">Late</Badge>}
               />
             ))}
@@ -124,7 +121,14 @@ export function WeekView({ plan, search, selection }: { plan: WeekPlan; search: 
                     to={selection ? undefined : `/stores/${r.storeId}/schedule`}
                     className={selection ? 'opacity-60' : undefined}
                     title={r.storeName}
-                    subtitle={[plural(r.totalQuantity, 'can'), r.assignedTo?.name ?? null].filter(Boolean).join(' · ')}
+                    subtitle={plural(r.totalQuantity, 'can')}
+                    note={
+                      r.assignedTo ? (
+                        <span className="font-medium text-ink-2">Assigned to {r.assignedTo.name}</span>
+                      ) : (
+                        <span className="text-muted">Not assigned yet</span>
+                      )
+                    }
                     trailing={
                       <Badge tone="brand">
                         <Repeat className="mr-1 size-3.5" aria-hidden />

@@ -1,3 +1,4 @@
+import { addDays, zonedDateKey } from '@wd/shared';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { PushMessage, PushOutcome, PushSender, PushTarget } from '../src/lib/push';
@@ -425,5 +426,59 @@ describe('cans at a client = cans already there + delivered − empties back', (
     const crate = (await biz.client.post('/api/products', { name: 'Crate', isReturnable: false })).json().id;
     const bad = await biz.client.request('PUT', `/api/stores/${biz.storeId}/cans`, { clientId: randomUUID(), items: [{ productId: crate, quantity: 3 }] });
     expect(bad.statusCode).toBe(400);
+  });
+});
+
+describe('giving many orders to staff at once', () => {
+  const place = async (quantity: number, deliveryDate?: string) => {
+    const res = await biz.client.post('/api/orders', { clientId: randomUUID(), storeId: biz.storeId, items: [{ productId: biz.canId, quantity }], ...(deliveryDate ? { deliveryDate } : {}) });
+    expect(res.statusCode).toBe(201);
+    return res.json<{ id: string; orderNumber: number }>();
+  };
+
+  it('assigns them all, skips delivered ones, and sends one summary', async () => {
+    await staff.post('/api/push/subscribe', { endpoint: 'https://push.example.com/raju-bulk', keys: { p256dh: 'BKeyKeyKeyKeyKeyKeyKey', auth: 'authauthauth' } });
+    const a = await place(3);
+    const b = await place(4);
+    const done = await place(2);
+    expect((await deliver(biz.client, done.id, 2)).statusCode).toBe(201);
+    sender.sent = [];
+
+    const res = await biz.client.post('/api/orders/assign', { orderIds: [a.id, b.id, done.id], staffId });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ assigned: 2, skipped: 1 });
+
+    const rows = await ctx.db.order.findMany({ where: { id: { in: [a.id, b.id, done.id] } }, select: { id: true, assignedToId: true } });
+    expect(Object.fromEntries(rows.map((r) => [r.id, r.assignedToId]))).toEqual({ [a.id]: staffId, [b.id]: staffId, [done.id]: null });
+    const pushes = sender.sent.filter((s) => s.endpoint === 'https://push.example.com/raju-bulk');
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0]!.message).toMatchObject({ title: 'New deliveries: 2 orders', body: '7 cans · Sri Ganesh Stores' });
+
+    const day = (await staff.get('/api/staff/today')).json<{ assignedOrders: { id: string }[] }>();
+    expect(day.assignedOrders.map((o) => o.id).sort()).toEqual([a.id, b.id].sort());
+
+    // Again: nothing new for them, so no second notification. Then back to the owner.
+    sender.sent = [];
+    await biz.client.post('/api/orders/assign', { orderIds: [a.id, b.id], staffId });
+    expect(sender.sent).toHaveLength(0);
+    expect((await biz.client.post('/api/orders/assign', { orderIds: [a.id], staffId: null })).json()).toEqual({ assigned: 1, skipped: 0 });
+    expect((await ctx.db.order.findUniqueOrThrow({ where: { id: a.id } })).assignedToId).toBeNull();
+  });
+
+  it('later orders reach staff on their day only', async () => {
+    const tomorrow = addDays(zonedDateKey(new Date(), 'Asia/Kolkata'), 1);
+    const later = await place(5, tomorrow);
+    await biz.client.post('/api/orders/assign', { orderIds: [later.id], staffId });
+    expect((await staff.get('/api/staff/today')).json().assignedOrders).toEqual([]);
+  });
+
+  it("refuses another business's orders, unknown staff, and anyone but the owner", async () => {
+    const mine = await place(1);
+    const other = await signupSupplier(ctx.app, { phone: '9555500060' });
+    expect((await other.client.post('/api/orders/assign', { orderIds: [mine.id], staffId: null })).statusCode).toBe(404);
+    expect((await biz.client.post('/api/orders/assign', { orderIds: [mine.id], staffId: 'nobody' })).statusCode).toBe(400);
+    expect((await biz.client.post('/api/orders/assign', { orderIds: [], staffId })).statusCode).toBe(400);
+    expect((await staff.post('/api/orders/assign', { orderIds: [mine.id], staffId })).statusCode).toBe(403);
+    expect((await ctx.db.order.findUniqueOrThrow({ where: { id: mine.id } })).assignedToId).toBeNull();
   });
 });

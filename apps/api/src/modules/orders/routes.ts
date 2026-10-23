@@ -1,5 +1,6 @@
 import {
   assignOrderSchema,
+  bulkAssignSchema,
   cancelOrderSchema,
   deliverOrderSchema,
   ORDER_STATUSES,
@@ -7,6 +8,7 @@ import {
   placeOrderSchema,
   quickSaleSchema,
   zonedDayRangeForKey,
+  type BulkAssignResult,
 } from '@wd/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -26,6 +28,8 @@ import { weekPlan } from './week';
 import { catchUpSchedules } from '../schedules/schedule';
 
 const OPEN_STATUSES = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'] as const;
+/** Still to be (fully) delivered: can be given to staff. */
+const ASSIGNABLE = [...OPEN_STATUSES, 'PARTIALLY_DELIVERED'] as const;
 const idParams = z.object({ id: z.string().min(1) });
 
 export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Services): void {
@@ -134,13 +138,34 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
   });
 
   /** Owner gives an open order to a member of staff (or takes it back with staffId null). */
+  /** Gives many orders to one member of staff (or back to the owner). Delivered ones are skipped. */
+  app.post('/api/orders/assign', async (req): Promise<BulkAssignResult> => {
+    const auth = requireSupplier(req);
+    const { orderIds, staffId } = parse(bulkAssignSchema, req.body);
+    const ids = [...new Set(orderIds)];
+    if (staffId) {
+      const staff = await db.user.findFirst({ where: { id: staffId, supplierId: auth.supplierId, role: 'STAFF', active: true }, select: { id: true } });
+      if (!staff) throw validationError('Choose an active member of staff.', { staffId: 'Not found' });
+    }
+    const orders = await db.order.findMany({ where: { id: { in: ids }, supplierId: auth.supplierId }, include: orderListInclude });
+    if (orders.length !== ids.length) throw notFound('Order');
+    const open = orders.filter((o) => (ASSIGNABLE as readonly string[]).includes(o.status));
+    if (open.length > 0) {
+      await db.order.updateMany({ where: { id: { in: open.map((o) => o.id) }, supplierId: auth.supplierId }, data: { assignedToId: staffId } });
+    }
+    const handedOver = open.filter((o) => o.assignedToId !== staffId).map(toOrderListItem);
+    if (staffId && handedOver.length === 1) await notify.orderAssigned(notifier, staffId, await loadOrderDto(db, { supplierId: auth.supplierId }, handedOver[0]!.id));
+    else if (staffId && handedOver.length > 1) await notify.ordersAssigned(notifier, staffId, handedOver);
+    return { assigned: open.length, skipped: orders.length - open.length };
+  });
+
   app.post('/api/orders/:id/assign', async (req) => {
     const auth = requireSupplier(req);
     const { id } = parse(idParams, req.params);
     const { staffId } = parse(assignOrderSchema, req.body);
     const order = await db.order.findFirst({ where: { id, supplierId: auth.supplierId }, select: { status: true, assignedToId: true } });
     if (!order) throw notFound('Order');
-    if (!(['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY', 'PARTIALLY_DELIVERED'] as string[]).includes(order.status)) {
+    if (!(ASSIGNABLE as readonly string[]).includes(order.status)) {
       throw validationError('Only orders still to be delivered can be given to staff.');
     }
     if (staffId) {

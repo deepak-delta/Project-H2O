@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateStaffInput, OrderDto, StaffDto, StaffTodayDto, UpdateStaffInput } from '@wd/shared';
+import type { BulkAssignInput, BulkAssignResult, CreateStaffInput, OrderDto, StaffDto, StaffTodayDto, UpdateStaffInput } from '@wd/shared';
 import { api } from '../../services/api';
 import { qk } from '../../services/queryKeys';
 
@@ -60,6 +60,18 @@ export function useAssignOrder(orderId: string) {
     mutationFn: (staffId: string | null) => api.post<OrderDto>(`/orders/${orderId}/assign`, { staffId }),
     onSuccess: (order) => {
       queryClient.setQueryData(qk.order(orderId), order);
+      void queryClient.invalidateQueries({ queryKey: qk.ordersRoot });
+      void queryClient.invalidateQueries({ queryKey: qk.staffRoot });
+    },
+  });
+}
+
+/** Gives many orders to one member of staff (null: back to the owner). */
+export function useBulkAssign() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: BulkAssignInput) => api.post<BulkAssignResult>('/orders/assign', input),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: qk.ordersRoot });
       void queryClient.invalidateQueries({ queryKey: qk.staffRoot });
     },

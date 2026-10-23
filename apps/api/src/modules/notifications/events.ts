@@ -165,6 +165,17 @@ export async function paymentReminder(db: Db, n: Notifier, supplierId: string, s
   });
 }
 
+/** Owner gave several orders to a member of staff at once → one summary for them. */
+export async function ordersAssigned(n: Notifier, staffId: string, orders: { storeName: string; totalQuantity: number }[]): Promise<void> {
+  const names = [...new Set(orders.map((o) => o.storeName))];
+  await n.toUser(staffId, {
+    title: `New deliveries: ${orders.length} orders`,
+    body: `${cans(orders.reduce((s, o) => s + o.totalQuantity, 0))} · ${names.length <= 3 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2} more`}`,
+    url: '/',
+    tag: 'orders-assigned',
+  });
+}
+
 /** Owner gave an order to a member of staff → that staff member. */
 export async function orderAssigned(n: Notifier, staffId: string, order: OrderDto): Promise<void> {
   await n.toUser(staffId, {

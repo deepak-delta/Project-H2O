@@ -47,3 +47,46 @@ test('orders: "This week" shows the next 7 days by day, with upcoming regular de
   await expect(page).toHaveURL(new RegExp(`/stores/${lakshmi.id}/schedule`));
   assertNoErrors();
 });
+
+test('orders: choose several and give them to staff in one go', async ({ page }) => {
+  const assertNoErrors = watchForErrors(page);
+  const { storeId, productId } = await setupSupplier(page.request);
+  const today = zonedDateKey(new Date(), 'Asia/Kolkata');
+  await api(page.request, 'POST', '/api/staff', { name: 'Raju Kumar', phone: randomPhone(), pin: '246810' });
+  const place = (quantity: number, deliveryDate?: string) =>
+    api<{ id: string; orderNumber: number }>(page.request, 'POST', '/api/orders', { clientId: crypto.randomUUID(), storeId, items: [{ productId, quantity }], ...(deliveryDate ? { deliveryDate } : {}) });
+  const a = await place(3);
+  const b = await place(4);
+  const c = await place(6, addDays(today, 2));
+  const assignedTo = async (id: string) => (await api<{ assignedTo: { name: string } | null }>(page.request, 'GET', `/api/orders/${id}`)).assignedTo?.name ?? null;
+
+  // Pending: tick two, give them to Raju.
+  await page.goto('/orders?tab=open');
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Choose orders' })).toBeDisabled();
+  await page.getByRole('button', { name: new RegExp(`#${a.orderNumber} ·`) }).click();
+  await page.getByRole('button', { name: new RegExp(`#${b.orderNumber} ·`) }).click();
+  await expectNoHorizontalScroll(page);
+  await page.getByRole('button', { name: 'Give 2 to staff' }).click();
+  await page.getByRole('dialog', { name: 'Give 2 orders to' }).getByRole('button', { name: /Raju Kumar/ }).click();
+  await expect(page.getByText("2 orders given to Raju Kumar. They've been told.")).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Select', exact: true })).toBeVisible();
+  expect([await assignedTo(a.id), await assignedTo(b.id), await assignedTo(c.id)]).toEqual(['Raju Kumar', 'Raju Kumar', null]);
+
+  // This week: choose a whole day with its Select, then take everything back.
+  await page.getByRole('radio', { name: 'This week' }).click();
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  await page.locator('section').nth(2).getByRole('button', { name: 'Select', exact: true }).click();
+  await page.getByRole('button', { name: 'Give 1 to staff' }).click();
+  await page.getByRole('dialog', { name: 'Give 1 order to' }).getByRole('button', { name: /Raju Kumar/ }).click();
+  await expect(page.getByText("1 order given to Raju Kumar. They've been told.")).toBeVisible();
+  expect(await assignedTo(c.id)).toBe('Raju Kumar');
+
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  await page.getByRole('button', { name: 'Select all' }).click();
+  await page.getByRole('button', { name: 'Give 3 to staff' }).click();
+  await page.getByRole('dialog', { name: 'Give 3 orders to' }).getByRole('button', { name: /Me \(owner\)/ }).click();
+  await expect(page.getByText('3 orders back with you.')).toBeVisible();
+  expect([await assignedTo(a.id), await assignedTo(b.id), await assignedTo(c.id)]).toEqual([null, null, null]);
+  assertNoErrors();
+});

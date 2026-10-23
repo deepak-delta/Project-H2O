@@ -25,6 +25,19 @@ export type StaffPinInput = z.input<typeof staffPinSchema>;
 export const assignOrderSchema = z.object({ staffId: z.string().min(1).nullable() });
 export type AssignOrderInput = z.input<typeof assignOrderSchema>;
 
+/** Give several orders to one member of staff (or back to the owner: null) in one go. */
+export const bulkAssignSchema = z.object({
+  orderIds: z.array(z.string().min(1)).min(1, 'Choose at least one order').max(200),
+  staffId: z.string().min(1).nullable(),
+});
+export type BulkAssignInput = z.input<typeof bulkAssignSchema>;
+export interface BulkAssignResult {
+  /** Orders now with that person. */
+  assigned: number;
+  /** Already delivered or cancelled, so left as they were. */
+  skipped: number;
+}
+
 export interface StaffDto {
   id: string;
   name: string;

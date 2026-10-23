@@ -189,6 +189,29 @@ export interface OrderListItem {
   storeMapLink: string | null;
 }
 
+/** A regular delivery due on a coming day; its order is made on the day itself. */
+export interface UpcomingRegular {
+  scheduleId: string;
+  storeId: string;
+  storeName: string;
+  storeAddress: string | null;
+  storeMapLink: string | null;
+  /** YYYY-MM-DD, business timezone. */
+  date: string;
+  items: { productName: string; quantity: number }[];
+  totalQuantity: number;
+  assignedTo: { id: string; name: string } | null;
+}
+
+/** Deliveries for the next 7 days (today first), plus pending orders already late. */
+export interface WeekPlan {
+  from: string;
+  to: string;
+  /** Not delivered, and due before today. Oldest first. */
+  late: OrderListItem[];
+  days: { date: string; orders: OrderListItem[]; regulars: UpcomingRegular[] }[];
+}
+
 export interface QuickSaleResult {
   order: OrderDto;
   /** Store balance after this sale (positive = owes). */

@@ -38,7 +38,7 @@ export default defineConfig({
     // The two critical journeys at every target phone width.
     ...[360, 375, 390, 430].map((width) => ({ name: `phone-${width}`, testMatch: /journeys\.spec\.ts/, use: phone(width) })),
     // Biometrics, real offline mode and accessibility once, at a common width.
-    { name: 'features-390', testMatch: /(biometric|offline|a11y|csp|notifications|install|layout|pricing|staff|search|cans|summary|pin-recovery|stock|owes)\.spec\.ts/, use: phone(390) },
+    { name: 'features-390', testMatch: /(biometric|offline|a11y|csp|notifications|install|layout|pricing|staff|search|cans|summary|pin-recovery|stock|owes|week)\.spec\.ts/, use: phone(390) },
   ],
   webServer: [
     {

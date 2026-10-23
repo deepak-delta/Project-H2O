@@ -5,11 +5,13 @@ import {
   placeOrderSchema,
   SCHEDULE_HOUR,
   zonedDateKey,
+  zonedDayRangeForKey,
   zonedHour,
   type OrderDto,
   type scheduleInputSchema,
   type ScheduleDto,
   type ScheduleRule,
+  type UpcomingRegular,
 } from '@wd/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { z } from 'zod';
@@ -120,6 +122,49 @@ export async function saveSchedule(
 export async function deleteSchedule(db: Db, supplierId: string, storeId: string): Promise<void> {
   const { count } = await db.deliverySchedule.deleteMany({ where: { supplierId, storeId } });
   if (count === 0) throw notFound('Regular delivery');
+}
+
+/**
+ * Regular deliveries falling on the given days whose order hasn't been made yet (it is made on
+ * the day at 6 AM). Days are YYYY-MM-DD keys in the business timezone, today first.
+ */
+export async function upcomingRegulars(db: Db, supplierId: string, days: string[]): Promise<UpcomingRegular[]> {
+  if (days.length === 0) return [];
+  const schedules = await db.deliverySchedule.findMany({
+    where: { supplierId, active: true, startDate: { lte: keyToDate(days.at(-1)!) }, store: { status: 'ACTIVE' } },
+    include: { ...scheduleInclude, store: { select: { name: true, address: true, mapLink: true } } },
+  });
+  if (schedules.length === 0) return [];
+  const { timezone } = await db.supplier.findUniqueOrThrow({ where: { id: supplierId }, select: { timezone: true } });
+  const made = await db.order.findMany({
+    where: {
+      supplierId,
+      scheduleId: { in: schedules.map((s) => s.id) },
+      deliveryDate: { gte: zonedDayRangeForKey(days[0]!, timezone).start, lt: zonedDayRangeForKey(days.at(-1)!, timezone).end },
+    },
+    select: { scheduleId: true, deliveryDate: true },
+  });
+  const madeKeys = new Set(made.map((o) => `${o.scheduleId}:${zonedDateKey(o.deliveryDate!, timezone)}`));
+
+  const out: UpcomingRegular[] = [];
+  for (const day of days) {
+    for (const s of schedules) {
+      if (!isScheduleDue(ruleOf(s), day) || madeKeys.has(`${s.id}:${day}`)) continue;
+      const staffOk = s.assignedTo && s.assignedTo.active && !s.assignedTo.deletedAt;
+      out.push({
+        scheduleId: s.id,
+        storeId: s.storeId,
+        storeName: s.store.name,
+        storeAddress: s.store.address,
+        storeMapLink: s.store.mapLink,
+        date: day,
+        items: s.items.map((i) => ({ productName: i.product.name, quantity: i.quantity })),
+        totalQuantity: s.items.reduce((n, i) => n + i.quantity, 0),
+        assignedTo: staffOk ? { id: s.assignedTo!.id, name: s.assignedTo!.name } : null,
+      });
+    }
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.storeName.localeCompare(b.storeName));
 }
 
 // ─── Making the day's orders ────────────────────────────────────────────────

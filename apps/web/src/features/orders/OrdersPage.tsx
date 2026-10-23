@@ -15,10 +15,11 @@ import { errorMessage } from '../../services/api';
 import { formatDate, formatDateTime, formatTime } from '../../utils/format';
 import { useSession } from '../auth/session';
 import { StoreSearchBox } from '../stores/StorePicker';
-import { useOrders, type OrderListParams } from './api';
+import { useOrders, useWeekPlan, type OrderListParams } from './api';
+import { WeekView } from './WeekView';
 
-type Tab = 'today' | 'open' | 'all';
-const TABS: Tab[] = ['today', 'open', 'all'];
+type Tab = 'today' | 'open' | 'week' | 'all';
+const TABS: Tab[] = ['today', 'open', 'week', 'all'];
 const OPEN = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'];
 
 export default function OrdersPage() {
@@ -28,14 +29,15 @@ export default function OrdersPage() {
   const isSupplier = user.role === 'SUPPLIER';
   const [params, setParams] = useSearchParams();
   const fromUrl = params.get('tab') as Tab | null;
-  const tab: Tab = fromUrl && TABS.includes(fromUrl) ? fromUrl : isSupplier ? 'today' : 'all';
+  const tab: Tab = fromUrl && TABS.includes(fromUrl) && (isSupplier || fromUrl !== 'week') ? fromUrl : isSupplier ? 'today' : 'all';
   const setTab = (t: Tab) => setParams({ tab: t }, { replace: true });
   const [search, setSearch] = useState('');
   const debounced = useDebounce(search.trim());
 
   const query: OrderListParams =
     tab === 'today' ? { date: zonedDateKey(new Date(), tz) } : tab === 'open' ? { status: 'OPEN' } : {};
-  const orders = useOrders({ ...query, search: debounced || undefined });
+  const orders = useOrders({ ...query, search: debounced || undefined }, tab !== 'week');
+  const week = useWeekPlan(tab === 'week');
   const rows = orders.data?.pages.flatMap((p) => p.items) ?? [];
 
   const subtitle = (o: OrderListItem) => {
@@ -66,6 +68,7 @@ export default function OrdersPage() {
                 ? [
                     { value: 'today', label: 'Today' },
                     { value: 'open', label: 'Pending' },
+                    { value: 'week', label: 'This week' },
                     { value: 'all', label: 'All' },
                   ]
                 : [
@@ -75,7 +78,15 @@ export default function OrdersPage() {
             }
           />
         </div>
-        {orders.isPending ? (
+        {tab === 'week' ? (
+          week.isPending ? (
+            <ListSkeleton rows={6} />
+          ) : week.isError ? (
+            <ErrorRetry message={errorMessage(week.error)} onRetry={() => void week.refetch()} />
+          ) : (
+            <WeekView plan={week.data} search={search} />
+          )
+        ) : orders.isPending ? (
           <ListSkeleton rows={6} />
         ) : orders.isError ? (
           <ErrorRetry message={errorMessage(orders.error)} onRetry={() => void orders.refetch()} />

@@ -22,6 +22,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { loadOrderDto, orderListInclude, toOrderListItem } from './order-dto';
 import { cancelOrder, changeOrderStatus, deliverOrder, placeOrder } from './lifecycle';
 import { quickSale } from './quick-sale';
+import { weekPlan } from './week';
 import { catchUpSchedules } from '../schedules/schedule';
 
 const OPEN_STATUSES = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'] as const;
@@ -81,6 +82,13 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
       take: q.limit + 1,
     });
     return toPage(rows, q.limit, (r) => ({ at: r.orderDate, id: r.id }), toOrderListItem);
+  });
+
+  /** Pending deliveries for the next 7 days, with the regular deliveries still to be made. */
+  app.get('/api/orders/week', async (req) => {
+    const { supplierId } = requireSupplier(req);
+    await catchUpSchedules({ db, notifier, log: req.log }, supplierId);
+    return weekPlan(db, supplierId);
   });
 
   app.get('/api/orders/:id', async (req) => {

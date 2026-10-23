@@ -10,6 +10,7 @@ import type {
   PlaceOrderInput,
   QuickSaleInput,
   QuickSaleResult,
+  WeekPlan,
 } from '@wd/shared';
 import { submitOrQueue, type SubmitResult } from '../../offline/engine';
 import type { OutboxItem } from '../../offline/outbox';
@@ -24,9 +25,15 @@ export interface OrderListParams {
   search?: string;
 }
 
-export function useOrders(params: OrderListParams) {
+/** The owner's next 7 days of deliveries (and late ones). */
+export function useWeekPlan(enabled = true) {
+  return useQuery({ queryKey: [...qk.ordersRoot, 'week'], queryFn: () => api.get<WeekPlan>('/orders/week'), enabled });
+}
+
+export function useOrders(params: OrderListParams, enabled = true) {
   return useInfiniteQuery({
     queryKey: qk.orders({ ...params }),
+    enabled,
     queryFn: ({ pageParam }) => {
       const search = new URLSearchParams();
       for (const [k, v] of Object.entries({ ...params, cursor: pageParam })) if (v) search.set(k, v);

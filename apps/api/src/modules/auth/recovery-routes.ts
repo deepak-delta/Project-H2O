@@ -118,9 +118,10 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: AppDeps): voi
 
   /** Step 1: a new secret, held as "pending" until a code from it is verified. */
   app.post('/api/auth/recovery/setup', { config: { rateLimit } }, async (req): Promise<RecoverySetupInfo> => {
+    // Login first, so an anonymous caller learns nothing about the form.
+    const user = await me(req);
     const key = requireTotpKey(deps);
     const input = parse(recoverySetupSchema, req.body);
-    const user = await me(req);
     await confirmPin(req, user, input.currentPin);
     const existing = await db.totpFactor.findUnique({ where: { userId: user.id } });
     // Replacing a working authenticator needs a code from it, not just the PIN.
@@ -162,9 +163,9 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: AppDeps): voi
 
   /** Step 2: prove the authenticator works; recovery turns on and recovery codes are shown once. */
   app.post('/api/auth/recovery/verify', { config: { rateLimit } }, async (req): Promise<RecoveryCodesResult> => {
+    const { userId } = requireAuth(req);
     const key = requireTotpKey(deps);
     const { code } = parse(recoveryVerifySchema, req.body);
-    const { userId } = requireAuth(req);
     const factor = await db.totpFactor.findUnique({ where: { userId } });
     if (!factor?.pendingSecretEnc || !factor.pendingExpiresAt || factor.pendingExpiresAt.getTime() <= Date.now()) {
       throw expired('This setup has expired. Please start again.');
@@ -211,9 +212,9 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: AppDeps): voi
 
   /** New recovery codes (the old ones stop working): current PIN plus an authenticator code. */
   app.post('/api/auth/recovery/codes', { config: { rateLimit } }, async (req): Promise<RecoveryCodesResult> => {
+    const user = await me(req);
     const key = requireTotpKey(deps);
     const input = parse(recoveryConfirmSchema, req.body);
-    const user = await me(req);
     await confirmPin(req, user, input.currentPin);
     await confirmAuthenticator(req, user, input.code, key);
     const recoveryCodes = await db.$transaction(async (tx) => {
@@ -226,9 +227,9 @@ export function registerRecoveryRoutes(app: FastifyInstance, deps: AppDeps): voi
 
   /** Turn recovery off: current PIN plus an authenticator code. */
   app.post('/api/auth/recovery/disable', { config: { rateLimit } }, async (req, reply) => {
+    const user = await me(req);
     const key = requireTotpKey(deps);
     const input = parse(recoveryConfirmSchema, req.body);
-    const user = await me(req);
     await confirmPin(req, user, input.currentPin);
     await confirmAuthenticator(req, user, input.code, key);
     await db.$transaction(async (tx) => {

@@ -360,3 +360,14 @@ describe('without an encryption key in production', () => {
     }
   });
 });
+
+describe('recovery settings need a login first', () => {
+  it('an anonymous caller is refused before the form is even looked at', async () => {
+    const anon = new Client(ctx.app);
+    for (const path of ['setup', 'verify', 'codes', 'disable']) {
+      const res = await anon.post(`/api/auth/recovery/${path}`, {});
+      expect(res.statusCode, path).toBe(401);
+      expect(res.body, path).not.toMatch(/expected|Invalid input/);
+    }
+  });
+});

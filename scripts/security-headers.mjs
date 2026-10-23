@@ -22,4 +22,6 @@ export const securityHeaders = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(self), payment=()',
   'X-Frame-Options': 'DENY',
+  // Pages opened from the app (WhatsApp, Maps) can't reach back into it, and it into them.
+  'Cross-Origin-Opener-Policy': 'same-origin',
 };

@@ -55,6 +55,9 @@ function StockActionForm({
   const [clientId] = useState(() => crypto.randomUUID());
   const [filled, setFilled] = useState(action === 'COUNT' ? Math.max(product.filled, 0) : 0);
   const [empty, setEmpty] = useState(action === 'COUNT' ? Math.max(product.empty, 0) : 0);
+  // Only returnable cans have a damaged pile to count.
+  const countDamaged = action === 'COUNT' && product.isReturnable;
+  const [damaged, setDamaged] = useState(Math.max(product.damaged, 0));
   const [quantity, setQuantity] = useState(initialQuantity);
   const [from, setFrom] = useState<'FILLED' | 'EMPTY'>('EMPTY');
   const [kind, setKind] = useState<'DAMAGE' | 'LOSS'>('DAMAGE');
@@ -74,7 +77,7 @@ function StockActionForm({
         return quantity > 0 ? { ...base, kind, from, quantity, reason } : 'Enter how many cans.';
       case 'COUNT':
         if (reason.trim().length < 3) return 'Say why the count changed (e.g. "Weekly count").';
-        return { ...base, kind: 'ADJUSTMENT', countedFilled: filled, countedEmpty: empty, reason };
+        return { ...base, kind: 'ADJUSTMENT', countedFilled: filled, countedEmpty: empty, ...(countDamaged ? { countedDamaged: damaged } : {}), reason };
     }
   };
 
@@ -83,7 +86,9 @@ function StockActionForm({
     if (typeof input === 'string') return setError(input);
     setError(null);
     if (action === 'COUNT' && !confirming) {
-      if (filled === product.filled && empty === product.empty) return setError('The count already matches the app.');
+      if (filled === product.filled && empty === product.empty && (!countDamaged || damaged === product.damaged)) {
+        return setError('The count already matches the app.');
+      }
       return setConfirming(true);
     }
     move.mutate(input, {
@@ -152,6 +157,15 @@ function StockActionForm({
           </p>
           <QuantityStepper label="Filled cans counted" hint={`App says ${product.filled}`} value={filled} onChange={setFilled} />
           <QuantityStepper label="Empty cans counted" hint={`App says ${product.empty}`} value={empty} onChange={setEmpty} />
+          {countDamaged ? (
+            <QuantityStepper
+              label="Damaged cans counted"
+              hint={`App says ${product.damaged}. Thrown away? Count only the ones still here.`}
+              value={damaged}
+              onChange={setDamaged}
+            />
+          ) : null}
+          <p className="text-sm text-muted">Lost cans that turned up again: count them with the filled or empty cans.</p>
         </>
       ) : null}
 
@@ -171,7 +185,8 @@ function StockActionForm({
           <p className="font-semibold">Record this correction?</p>
           <p>
             Filled {product.filled} → {filled} ({signed(filled - product.filled)}), empty {product.empty} → {empty} (
-            {signed(empty - product.empty)}).
+            {signed(empty - product.empty)})
+            {countDamaged ? `, damaged ${product.damaged} → ${damaged} (${signed(damaged - product.damaged)})` : ''}.
           </p>
         </div>
       ) : null}

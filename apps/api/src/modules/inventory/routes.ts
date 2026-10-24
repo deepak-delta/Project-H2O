@@ -218,8 +218,9 @@ function computeDeltas(
     case 'ADJUSTMENT': {
       const filledDelta = input.countedFilled - current.filled;
       const emptyDelta = input.countedEmpty - current.empty;
-      if (filledDelta === 0 && emptyDelta === 0) throw validationError('The count already matches the stock.');
-      return { type: 'ADJUSTMENT', filledDelta, emptyDelta, damagedDelta: 0, reason: input.reason };
+      const damagedDelta = input.countedDamaged === undefined ? 0 : input.countedDamaged - current.damaged;
+      if (filledDelta === 0 && emptyDelta === 0 && damagedDelta === 0) throw validationError('The count already matches the stock.');
+      return { type: 'ADJUSTMENT', filledDelta, emptyDelta, damagedDelta, reason: input.reason };
     }
   }
 }

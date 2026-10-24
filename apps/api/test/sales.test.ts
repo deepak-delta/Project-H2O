@@ -226,6 +226,28 @@ describe('quick sale — cans and stock', () => {
     expect(await ctx.db.auditLog.count({ where: { action: 'STOCK_CORRECTED' } })).toBe(1);
   });
 
+  it('the damaged count can be corrected too, with the change kept in history', async () => {
+    const move = (body: Record<string, unknown>) =>
+      biz.client.post('/api/inventory/movements', { clientId: crypto.randomUUID(), productId: biz.canId, ...body });
+    expect((await move({ kind: 'DAMAGE', from: 'EMPTY', quantity: 5 })).statusCode).toBe(201);
+    expect(await stockOf(biz.client, biz.canId)).toMatchObject({ filled: 100, empty: 15, damaged: 5 });
+
+    // 3 were thrown away: only 2 damaged left in the yard.
+    const fix = await move({ kind: 'ADJUSTMENT', countedFilled: 100, countedEmpty: 15, countedDamaged: 2, reason: 'Threw away 3 broken cans' });
+    expect(fix.statusCode).toBe(201);
+    expect(fix.json()).toMatchObject({ type: 'ADJUSTMENT', filledDelta: 0, emptyDelta: 0, damagedDelta: -3 });
+    expect(await stockOf(biz.client, biz.canId)).toMatchObject({ filled: 100, empty: 15, damaged: 2 });
+    const audit = await ctx.db.auditLog.findFirstOrThrow({ where: { action: 'STOCK_CORRECTED' } });
+    expect(audit.before).toMatchObject({ damaged: 5 });
+    expect(audit.after).toMatchObject({ damaged: 2 });
+
+    // Leaving the damaged count out keeps it; nothing changed at all is refused.
+    expect((await move({ kind: 'ADJUSTMENT', countedFilled: 99, countedEmpty: 15, reason: 'Weekly count' })).json()).toMatchObject({ damagedDelta: 0 });
+    expect((await stockOf(biz.client, biz.canId)).damaged).toBe(2);
+    const same = await move({ kind: 'ADJUSTMENT', countedFilled: 99, countedEmpty: 15, countedDamaged: 2, reason: 'Weekly count' });
+    expect(same.statusCode).toBe(400);
+  });
+
   it('collecting empties without a sale', async () => {
     await quickSale(sale(biz.storeId, [{ productId: biz.canId, quantity: 10 }], { amount: '0' }));
     const clientId = crypto.randomUUID();

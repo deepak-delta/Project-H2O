@@ -51,6 +51,8 @@ export const stockMovementSchema = z.discriminatedUnion('kind', [
     productId: z.string().min(1),
     countedFilled: quantitySchema,
     countedEmpty: quantitySchema,
+    /** Damaged cans counted (returnable products). Left out: the damaged count stays as it is. */
+    countedDamaged: quantitySchema.optional(),
     reason: z.string().trim().min(3, 'Say why the count changed').max(200),
   }),
 ]);

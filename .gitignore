@@ -25,3 +25,6 @@ brag-output*/
 
 # Intermediate file of npm run docs:test-plan
 docs/testing/test-plan.html
+
+# Local admin dashboard (npm run admin): kept on this computer only
+admin/

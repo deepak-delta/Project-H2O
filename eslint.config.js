@@ -24,6 +24,8 @@ export default tseslint.config(
       'apps/mobile/android/**',
       'apps/mobile/www/**',
       'apps/mobile/*.mjs',
+      // Local admin dashboard: one plain Node file, run with `npm run admin`.
+      'admin/**',
     ],
   },
   js.configs.recommended,

@@ -4,14 +4,33 @@
     {
       "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 5173
     },
     {
       "name": "dev-localdb",
       "runtimeExecutable": "env",
-      "runtimeArgs": ["DATABASE_URL=postgresql://postgres@localhost:54329/wd_dev", "npm", "run", "dev"],
+      "runtimeArgs": [
+        "DATABASE_URL=postgresql://postgres@localhost:54329/wd_dev",
+        "npm",
+        "run",
+        "dev"
+      ],
       "port": 5173
+    },
+    {
+      "name": "admin-localdb",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "DIRECT_URL=postgresql://postgres@localhost:54329/wd_e2e",
+        "ADMIN_PORT=4321",
+        "node",
+        "admin/server.mjs"
+      ],
+      "port": 4321
     }
   ]
 }

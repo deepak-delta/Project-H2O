@@ -26,11 +26,11 @@
       "runtimeExecutable": "env",
       "runtimeArgs": [
         "DIRECT_URL=postgresql://postgres@localhost:54329/wd_e2e",
-        "ADMIN_PORT=4321",
+        "ADMIN_PORT=4323",
         "node",
         "admin/server.mjs"
       ],
-      "port": 4321
+      "port": 4323
     }
   ]
 }

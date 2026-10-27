@@ -80,6 +80,8 @@ export interface MovementDto {
   orderNumber: number | null;
   reason: string | null;
   occurredAt: string;
+  /** Who recorded it (owner or a member of staff). */
+  createdByName: string;
 }
 
 export interface CanHolder {

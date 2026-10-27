@@ -12,6 +12,7 @@ import { Stat } from '../../components/ui/Stat';
 import { useTimezone } from '../../hooks/useMoney';
 import { errorMessage } from '../../services/api';
 import { formatTime } from '../../utils/format';
+import { useSession } from '../auth/session';
 import { useHolders, useMovements, useStock } from './api';
 import { StockActionSheet, type StockAction } from './StockActionSheet';
 
@@ -38,6 +39,7 @@ function describe(m: MovementDto): string {
 }
 
 export default function InventoryPage() {
+  const isOwner = useSession().user.role === 'SUPPLIER';
   const stock = useStock();
   const holders = useHolders();
   const tz = useTimezone();
@@ -58,11 +60,13 @@ export default function InventoryPage() {
           <EmptyState
             icon={<Boxes className="size-6" />}
             title="No products yet"
-            description="Add a product like a 20L can to start tracking stock."
+            description={isOwner ? 'Add a product like a 20L can to start tracking stock.' : 'The owner adds products; stock shows here after that.'}
             action={
-              <Link to="/products" className="inline-flex h-11 items-center rounded-xl bg-brand-700 px-4 font-semibold text-white">
-                Add product
-              </Link>
+              isOwner ? (
+                <Link to="/products" className="inline-flex h-11 items-center rounded-xl bg-brand-700 px-4 font-semibold text-white">
+                  Add product
+                </Link>
+              ) : undefined
             }
           />
         ) : (
@@ -125,7 +129,7 @@ export default function InventoryPage() {
                   <ListRow
                     key={m.id}
                     title={`${MOVEMENT_LABEL[m.type]}${m.orderNumber ? ` #${m.orderNumber}` : ''}`}
-                    subtitle={[m.storeName, m.productName, formatTime(m.occurredAt, tz)].filter(Boolean).join(' · ')}
+                    subtitle={[m.storeName, m.productName, formatTime(m.occurredAt, tz), `by ${m.createdByName}`].filter(Boolean).join(' · ')}
                     trailing={<span className="text-sm text-ink-2 tabular">{describe(m)}</span>}
                   />
                 ))}

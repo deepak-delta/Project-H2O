@@ -1,5 +1,5 @@
 import { formatPhone } from '@wd/shared';
-import { Bell, Receipt, ShieldCheck } from 'lucide-react';
+import { Bell, Boxes, Receipt, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
 import { Card, ListCard, ListRow } from '../../components/ui/Card';
@@ -26,6 +26,12 @@ export default function StaffMorePage() {
             title="Add expense"
             subtitle="Fuel or other spending today"
             leading={<Receipt className="size-5 text-brand-700" aria-hidden />}
+          />
+          <ListRow
+            to="/inventory"
+            title="Inventory"
+            subtitle="Stock, refills, damaged or lost cans"
+            leading={<Boxes className="size-5 text-brand-700" aria-hidden />}
           />
         </ListCard>
         <ListCard>

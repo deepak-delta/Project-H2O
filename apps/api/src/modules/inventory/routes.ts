@@ -7,12 +7,13 @@ import {
 } from '@wd/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { AppDeps } from '../../app';
-import { requireSupplier } from '../../lib/auth-context';
+import type { Services } from '../../app';
+import * as notify from '../notifications/events';
+import { requireOperator } from '../../lib/auth-context';
 import { audit } from '../../lib/audit';
 import { getBusinessSettings } from '../../lib/business';
 import type { Db } from '../../lib/db';
-import { notFound, validationError } from '../../lib/errors';
+import { forbidden, notFound, validationError } from '../../lib/errors';
 import { idempotent } from '../../lib/idempotency';
 import { decodeCursor, olderThan, toPage } from '../../lib/pagination';
 import { parse } from '../../lib/validate';
@@ -23,6 +24,7 @@ const movementInclude = {
   product: { select: { name: true } },
   store: { select: { name: true } },
   order: { select: { orderNumber: true } },
+  createdBy: { select: { name: true } },
 } as const;
 
 type MovementRow = Prisma.InventoryMovementGetPayload<{ include: typeof movementInclude }>;
@@ -40,6 +42,7 @@ export function toMovementDto(m: MovementRow): MovementDto {
     orderNumber: m.order?.orderNumber ?? null,
     reason: m.reason,
     occurredAt: m.occurredAt.toISOString(),
+    createdByName: m.createdBy.name,
   };
 }
 
@@ -68,14 +71,14 @@ interface Deltas {
   reason: string | null;
 }
 
-export function registerInventoryRoutes(app: FastifyInstance, { db }: AppDeps): void {
+export function registerInventoryRoutes(app: FastifyInstance, { db, notifier }: Services): void {
   app.get('/api/inventory', async (req) => {
-    const auth = requireSupplier(req);
+    const auth = requireOperator(req);
     return loadStockSummary(db, auth.supplierId);
   });
 
   app.get('/api/inventory/movements', async (req) => {
-    const auth = requireSupplier(req);
+    const auth = requireOperator(req);
     const q = parse(
       z.object({
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -103,7 +106,7 @@ export function registerInventoryRoutes(app: FastifyInstance, { db }: AppDeps): 
 
   /** Which stores have this product's cans right now — "who has my cans?" */
   app.get('/api/inventory/holders', async (req) => {
-    const auth = requireSupplier(req);
+    const auth = requireOperator(req);
     const { productId } = parse(z.object({ productId: z.string().optional() }), req.query);
     const rows = await db.$queryRaw<
       { storeId: string; storeName: string; phone: string | null; quantity: bigint; lastDeliveryAt: Date | null }[]
@@ -130,8 +133,10 @@ export function registerInventoryRoutes(app: FastifyInstance, { db }: AppDeps): 
   });
 
   app.post('/api/inventory/movements', async (req, reply) => {
-    const auth = requireSupplier(req);
+    const auth = requireOperator(req);
     const input = parse(stockMovementSchema, req.body);
+    // Opening stock is the business's starting point: the owner's to set.
+    if (input.kind === 'OPENING' && auth.role === 'STAFF') throw forbidden('Only the owner can enter opening stock.');
 
     const product = await db.product.findFirst({ where: { id: input.productId, supplierId: auth.supplierId } });
     if (!product) throw notFound('Product');
@@ -177,7 +182,12 @@ export function registerInventoryRoutes(app: FastifyInstance, { db }: AppDeps): 
         }),
     );
 
-    return reply.status(replayed ? 200 : 201).send(toMovementDto(result));
+    const dto = toMovementDto(result);
+    // The owner hears about staff corrections and damaged/lost cans (not routine stock-in).
+    if (!replayed && auth.role === 'STAFF' && (dto.type === 'ADJUSTMENT' || dto.type === 'DAMAGE' || dto.type === 'LOSS')) {
+      await notify.stockChangedByStaff(notifier, auth.supplierId, dto);
+    }
+    return reply.status(replayed ? 200 : 201).send(dto);
   });
 }
 

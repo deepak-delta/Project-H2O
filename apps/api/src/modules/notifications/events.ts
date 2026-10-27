@@ -1,4 +1,4 @@
-import { formatMoney, LOW_STOCK_FILLED_CANS, toMinor, type OrderDto } from '@wd/shared';
+import { formatMoney, LOW_STOCK_FILLED_CANS, toMinor, type MovementDto, type OrderDto } from '@wd/shared';
 import type { Db } from '../../lib/db';
 import { stockByProduct } from '../inventory/stock';
 import type { Notifier } from './notifier';
@@ -162,6 +162,22 @@ export async function paymentReminder(db: Db, n: Notifier, supplierId: string, s
     body: `Your balance is ${formatMoney(balance, biz.currency)}. Please pay when convenient. Thank you!`,
     url: '/statement',
     tag: 'payment-reminder',
+  });
+}
+
+/** A member of staff corrected stock or marked cans damaged/lost → the owner. */
+export async function stockChangedByStaff(n: Notifier, supplierId: string, m: MovementDto): Promise<void> {
+  const parts = [
+    m.filledDelta ? `filled ${m.filledDelta > 0 ? '+' : ''}${m.filledDelta}` : null,
+    m.emptyDelta ? `empty ${m.emptyDelta > 0 ? '+' : ''}${m.emptyDelta}` : null,
+    m.damagedDelta ? `damaged ${m.damagedDelta > 0 ? '+' : ''}${m.damagedDelta}` : null,
+  ].filter(Boolean);
+  const what = m.type === 'ADJUSTMENT' ? 'corrected the stock count' : m.type === 'DAMAGE' ? 'marked cans damaged' : 'marked cans lost';
+  await n.toSupplier(supplierId, {
+    title: `${m.createdByName} ${what}`,
+    body: [`${m.productName}: ${parts.join(', ') || 'no change'}`, m.reason].filter(Boolean).join(' · '),
+    url: '/inventory',
+    tag: `stock-${m.id}`,
   });
 }
 

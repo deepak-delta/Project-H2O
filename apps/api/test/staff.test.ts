@@ -141,8 +141,6 @@ describe('what staff cannot see or do', () => {
     const paymentId = (await biz.client.post('/api/payments', { clientId: randomUUID(), storeId: biz.storeId, amount: '10', method: 'CASH' })).json().payment.id;
     const forbidden: [string, string, unknown?][] = [
       ['GET', '/api/dashboard'],
-      ['GET', '/api/inventory'],
-      ['GET', '/api/inventory/movements'],
       ['GET', '/api/reports/sales?period=month'],
       ['GET', '/api/cashflow'],
       ['GET', '/api/cashflow/summary'],
@@ -489,5 +487,56 @@ describe('can staff be notified?', () => {
     expect(await list()).toMatchObject({ canNotify: false });
     await staff.post('/api/push/subscribe', { endpoint: 'https://push.example.com/raju-can', keys: { p256dh: 'BKeyKeyKeyKeyKeyKeyKey', auth: 'authauthauth' } });
     expect(await list()).toMatchObject({ canNotify: true });
+  });
+});
+
+describe('staff and inventory', () => {
+  const OWNER_PHONE = 'https://push.example.com/owner-stock';
+  const move = (client: Client, body: Record<string, unknown>) =>
+    client.post('/api/inventory/movements', { clientId: randomUUID(), productId: biz.canId, ...body });
+
+  it('see stock, who holds cans and the history, with who did what', async () => {
+    const stock = await staff.get('/api/inventory');
+    expect(stock.statusCode).toBe(200);
+    expect(stock.json()[0]).toMatchObject({ filled: 100, empty: 20 });
+    expect((await staff.get('/api/inventory/holders')).statusCode).toBe(200);
+    expect((await move(staff, { kind: 'REFILL', quantity: 5 })).statusCode).toBe(201);
+    const history = (await staff.get('/api/inventory/movements')).json<{ items: { type: string; createdByName: string }[] }>();
+    expect(history.items[0]).toMatchObject({ type: 'REFILL', createdByName: 'Raju' });
+  });
+
+  it('add stock, refill, mark damaged/lost and correct the count; never the opening stock', async () => {
+    expect((await move(staff, { kind: 'PURCHASE', filled: 10, empty: 0 })).statusCode).toBe(201);
+    expect((await move(staff, { kind: 'REFILL', quantity: 4 })).statusCode).toBe(201);
+    expect((await move(staff, { kind: 'DAMAGE', from: 'EMPTY', quantity: 2 })).statusCode).toBe(201);
+    expect((await move(staff, { kind: 'LOSS', from: 'FILLED', quantity: 1, reason: 'Fell off van' })).statusCode).toBe(201);
+    expect((await move(staff, { kind: 'ADJUSTMENT', countedFilled: 110, countedEmpty: 14, countedDamaged: 2, reason: 'Evening count' })).statusCode).toBe(201);
+    expect((await biz.client.get('/api/inventory')).json()[0]).toMatchObject({ filled: 110, empty: 14, damaged: 2 });
+    const opening = await move(staff, { kind: 'OPENING', filled: 5, empty: 0 });
+    expect(opening.statusCode).toBe(403);
+    expect(await ctx.db.auditLog.count({ where: { action: 'STOCK_CORRECTED', actorId: staffId } })).toBe(1);
+  });
+
+  it('the owner hears about staff corrections and damaged/lost cans, not routine stock-in', async () => {
+    await biz.client.post('/api/push/subscribe', { endpoint: OWNER_PHONE, keys: { p256dh: 'BKeyKeyKeyKeyKeyKeyKey', auth: 'authauthauth' } });
+    sender.sent = [];
+    await move(staff, { kind: 'PURCHASE', filled: 10, empty: 0 });
+    await move(staff, { kind: 'REFILL', quantity: 3 });
+    await move(biz.client, { kind: 'DAMAGE', from: 'EMPTY', quantity: 1 }); // the owner's own: no push
+    expect(sender.sent.filter((s) => s.endpoint === OWNER_PHONE)).toHaveLength(0);
+
+    await move(staff, { kind: 'DAMAGE', from: 'EMPTY', quantity: 2, reason: 'Cracked' });
+    await move(staff, { kind: 'ADJUSTMENT', countedFilled: 100, countedEmpty: 14, reason: 'Count' });
+    const pushes = sender.sent.filter((s) => s.endpoint === OWNER_PHONE).map((s) => s.message);
+    expect(pushes).toEqual([
+      expect.objectContaining({ title: 'Raju marked cans damaged', body: '20L can: empty -2, damaged +2 · Cracked' }),
+      expect.objectContaining({ title: 'Raju corrected the stock count' }),
+    ]);
+  });
+
+  it('client logins still cannot see inventory', async () => {
+    const store = await storeUserClient(ctx.app, biz.client, biz.storeId, '9700000071');
+    expect((await store.get('/api/inventory')).statusCode).toBe(403);
+    expect((await store.post('/api/inventory/movements', { clientId: randomUUID(), productId: biz.canId, kind: 'PURCHASE', filled: 1, empty: 0 })).statusCode).toBe(403);
   });
 });

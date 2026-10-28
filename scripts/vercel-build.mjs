@@ -4,7 +4,9 @@
 //   config.json        routing, caching and security headers
 //
 // On Vercel, set the project's Build Command to `npm run build:vercel`.
-// Migrations run only for production deployments (VERCEL_ENV=production) using DIRECT_URL.
+// Migrations run (using DIRECT_URL) for production deployments, and for preview deployments
+// only when the Preview environment is the QA one (APP_ENV=qa, its own database). Without
+// APP_ENV=qa a preview never touches a database schema.
 import { execSync } from 'node:child_process';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -19,11 +21,15 @@ rmSync(out, { recursive: true, force: true });
 
 // 1. Database client + migrations
 run('npm run db:generate -w @wd/api');
-if (process.env.VERCEL_ENV === 'production') {
+const isQa = process.env.VERCEL_ENV === 'preview' && process.env.APP_ENV === 'qa';
+if (process.env.VERCEL_ENV === 'production' || isQa) {
+  console.log(`[build] Migrating the ${isQa ? 'QA' : 'production'} database.`);
   run('npm run db:deploy -w @wd/api');
 } else {
-  console.log('[build] Skipping migrations (not a production deployment).');
+  console.log('[build] Skipping migrations (not production, and not the QA preview).');
 }
+// The web app shows a "QA" badge when built for the QA environment.
+if (isQa) process.env.VITE_APP_ENV = 'qa';
 
 // 2. Static PWA
 run('npm run build -w @wd/web');

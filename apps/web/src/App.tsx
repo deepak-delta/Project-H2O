@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { CircleAlert, WifiOff } from 'lucide-react';
+import { QaBadge } from './components/layout/QaBadge';
 import { lazy, Suspense, type ReactElement, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation } from 'react-router';
 import { AppShell } from './components/layout/AppShell';
@@ -236,6 +237,7 @@ export function App() {
       // show it immediately, but re-check everything in the background when online.
       onSuccess={() => void queryClient.invalidateQueries()}
     >
+      <QaBadge />
       <OfflineBanner />
       <RouterProvider router={router} />
       <Toaster />

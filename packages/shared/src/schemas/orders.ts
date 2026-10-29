@@ -63,6 +63,8 @@ export const deliverOrderSchema = z.object({
   payment: paymentAtSaleSchema,
   notes: optionalNote,
   occurredAt: occurredAtSchema,
+  /** Fewer cans than ordered and the client wants no more: mark the order delivered. */
+  closeOrder: z.boolean().default(false),
 });
 export type DeliverOrderInput = z.input<typeof deliverOrderSchema>;
 

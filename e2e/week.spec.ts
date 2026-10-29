@@ -94,3 +94,48 @@ test('orders: choose several and give them to staff in one go', async ({ page })
   expect([await assignedTo(a.id), await assignedTo(b.id), await assignedTo(c.id)]).toEqual([null, null, null]);
   assertNoErrors();
 });
+
+test('orders: pending oldest first, a short delivery closes the order, Delivered tab, money by method', async ({ page }) => {
+  const assertNoErrors = watchForErrors(page);
+  const { storeId, productId } = await setupSupplier(page.request);
+  const place = (quantity: number) =>
+    api<{ id: string; orderNumber: number }>(page.request, 'POST', '/api/orders', { clientId: crypto.randomUUID(), storeId, items: [{ productId, quantity }] });
+  const first = await place(10);
+  const second = await place(4);
+
+  // Pending: first added at the top.
+  await page.goto('/orders?tab=open');
+  const rows = page.getByRole('link', { name: /Sri Ganesh Stores/ });
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText(`#${first.orderNumber} ·`);
+  await expect(rows.nth(1)).toContainText(`#${second.orderNumber} ·`);
+
+  // The client wanted only 7 of the 10: by default the rest isn't needed.
+  await page.goto(`/orders/${first.id}/deliver`);
+  await page.getByRole('textbox', { name: '20L can' }).first().fill('7');
+  await expect(page.getByText('Ordered 10, delivering 7. The other 3…')).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Not needed' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: 'UPI' }).click();
+  await expectNoHorizontalScroll(page);
+  await page.getByRole('button', { name: /Confirm delivery · ₹350/ }).click();
+  await expect(page.getByText(new RegExp(`Order #${first.orderNumber} · Sri Ganesh Stores`))).toBeVisible();
+
+  await page.goto('/orders?tab=open');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText(`#${second.orderNumber} ·`);
+
+  // Delivered today.
+  await page.getByRole('radio', { name: 'Delivered' }).click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText(`#${first.orderNumber} · 7 cans · delivered`);
+
+  // Daily sales: what came in by UPI and cash.
+  await api(page.request, 'POST', '/api/payments', { clientId: crypto.randomUUID(), storeId, amount: '50', method: 'CASH' });
+  await page.goto('/reports/sales');
+  const methods = page.getByRole('region', { name: 'Collected by payment method' });
+  await expect(methods).toContainText('UPI₹350');
+  await expect(methods).toContainText('Cash₹50');
+  await expect(page.getByText('Cash ₹50 · UPI ₹350')).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  assertNoErrors();
+});

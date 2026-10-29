@@ -21,8 +21,12 @@ import { MONEY_AND_STOCK_KEYS, qk } from '../../services/queryKeys';
 export interface OrderListParams {
   status?: OrderStatus | 'OPEN';
   date?: string;
+  /** Orders with a delivery on this day. */
+  deliveredOn?: string;
   storeId?: string;
   search?: string;
+  /** 'oldest': first added at the top. */
+  sort?: 'newest' | 'oldest';
 }
 
 /** The owner's next 7 days of deliveries (and late ones). */

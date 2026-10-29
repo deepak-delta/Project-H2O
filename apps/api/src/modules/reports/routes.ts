@@ -1,6 +1,8 @@
 import {
   fromMinor,
+  PAYMENT_METHODS,
   periodKeys,
+  type PaymentMethod,
   type BusinessSummary,
   type InventoryReport,
   type OutstandingReport,
@@ -39,7 +41,7 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
     const { groupBy } = parse(z.object({ groupBy: z.enum(['day', 'month']).default('day') }), req.query);
     const tz = range.timezone;
 
-    const [money, cans, deliveries] = await Promise.all([
+    const [money, cans, deliveries, methods] = await Promise.all([
       db.$queryRaw<{ period: string; sales: unknown; collected: unknown }[]>`
         SELECT ${periodOf(Prisma.sql`"occurredAt"`, groupBy, tz)} AS period,
                ${NET_SALES} AS sales,
@@ -59,7 +61,26 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
         WHERE d."supplierId" = ${supplierId} AND o.status <> 'CANCELLED'
           AND d."deliveredAt" >= ${range.start} AND d."deliveredAt" < ${range.end}
         GROUP BY 1`,
+      // Same rows as COLLECTED (payments less reversed payments), split by payment method.
+      db.$queryRaw<{ period: string; method: PaymentMethod; collected: unknown }[]>`
+        SELECT ${periodOf(Prisma.sql`l."occurredAt"`, groupBy, tz)} AS period, p.method,
+               -SUM(l.amount) AS collected
+        FROM "LedgerEntry" l JOIN "Payment" p ON p.id = l."paymentId"
+        WHERE l."supplierId" = ${supplierId} AND l."occurredAt" >= ${range.start} AND l."occurredAt" < ${range.end}
+          AND (l.type = 'PAYMENT' OR l.type = 'REVERSAL')
+        GROUP BY 1, 2`,
     ]);
+    const zeroMethods = () => Object.fromEntries(PAYMENT_METHODS.map((m) => [m, 0])) as Record<PaymentMethod, number>;
+    const methodsBy = new Map<string, Record<PaymentMethod, number>>();
+    const methodTotals = zeroMethods();
+    for (const r of methods) {
+      const row = methodsBy.get(r.period) ?? zeroMethods();
+      row[r.method] += sqlSumToMinor(r.collected);
+      methodTotals[r.method] += sqlSumToMinor(r.collected);
+      methodsBy.set(r.period, row);
+    }
+    const asMoney = (m: Record<PaymentMethod, number>) =>
+      Object.fromEntries(PAYMENT_METHODS.map((k) => [k, fromMinor(m[k])])) as Record<PaymentMethod, string>;
 
     const moneyBy = new Map(money.map((r) => [r.period, { sales: sqlSumToMinor(r.sales), collected: sqlSumToMinor(r.collected) }]));
     const cansBy = new Map(cans.map((r) => [r.period, Number(r.cans)]));
@@ -79,6 +100,7 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
         cans: row.cans,
         sales: fromMinor(row.sales),
         collected: fromMinor(row.collected),
+        byMethod: asMoney(methodsBy.get(period) ?? zeroMethods()),
         duesChange: fromMinor(row.sales - row.collected),
       };
     });
@@ -93,6 +115,7 @@ export function registerReportRoutes(app: FastifyInstance, { db }: AppDeps): voi
         cans: totals.cans,
         sales: fromMinor(totals.sales),
         collected: fromMinor(totals.collected),
+        byMethod: asMoney(methodTotals),
         duesChange: fromMinor(totals.sales - totals.collected),
       },
     };

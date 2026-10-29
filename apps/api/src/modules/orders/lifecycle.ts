@@ -167,7 +167,7 @@ export async function deliverOrder(
             clientId: input.clientId,
             at: now,
           });
-          await settleOrderTotals(tx, order.id, discount, now);
+          await settleOrderTotals(tx, order.id, discount, now, input.closeOrder);
           return order.id;
         },
         { timeout: 15000 },

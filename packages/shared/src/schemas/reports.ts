@@ -90,6 +90,8 @@ export interface SalesReportRow {
   sales: string;
   /** Net of reversed payments. */
   collected: string;
+  /** The collected amount split by how it was paid (adds up to `collected`). */
+  byMethod: Record<PaymentMethod, string>;
   /** Sales minus collections: how much dues grew (negative = shrank). */
   duesChange: string;
 }

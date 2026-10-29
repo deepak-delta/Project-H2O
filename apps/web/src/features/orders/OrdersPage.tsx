@@ -19,8 +19,8 @@ import { useOrders, useWeekPlan, type OrderListParams } from './api';
 import { AssignedNote, AssignSheet, SelectionBar, SelectMark } from './BulkAssign';
 import { matchesSearch, WeekView } from './WeekView';
 
-type Tab = 'today' | 'open' | 'week' | 'all';
-const TABS: Tab[] = ['today', 'open', 'week', 'all'];
+type Tab = 'today' | 'open' | 'week' | 'delivered' | 'all';
+const TABS: Tab[] = ['today', 'open', 'week', 'delivered', 'all'];
 const OPEN = ['PENDING', 'CONFIRMED', 'OUT_FOR_DELIVERY'];
 
 export default function OrdersPage() {
@@ -30,7 +30,8 @@ export default function OrdersPage() {
   const isSupplier = user.role === 'SUPPLIER';
   const [params, setParams] = useSearchParams();
   const fromUrl = params.get('tab') as Tab | null;
-  const tab: Tab = fromUrl && TABS.includes(fromUrl) && (isSupplier || fromUrl !== 'week') ? fromUrl : isSupplier ? 'today' : 'all';
+  const tab: Tab =
+    fromUrl && TABS.includes(fromUrl) && (isSupplier || (fromUrl !== 'week' && fromUrl !== 'delivered')) ? fromUrl : isSupplier ? 'today' : 'all';
   const setTab = (t: Tab) => {
     setSelecting(false);
     setParams({ tab: t }, { replace: true });
@@ -58,8 +59,16 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('');
   const debounced = useDebounce(search.trim());
 
+  const todayKey = zonedDateKey(new Date(), tz);
   const query: OrderListParams =
-    tab === 'today' ? { date: zonedDateKey(new Date(), tz) } : tab === 'open' ? { status: 'OPEN' } : {};
+    tab === 'today'
+      ? { date: todayKey }
+      : tab === 'open'
+        ? // Pending: first added at the top, so orders are delivered in turn.
+          { status: 'OPEN', ...(isSupplier ? { sort: 'oldest' as const } : {}) }
+        : tab === 'delivered'
+          ? { deliveredOn: todayKey }
+          : {};
   const orders = useOrders({ ...query, search: debounced || undefined }, tab !== 'week');
   const week = useWeekPlan(tab === 'week');
   const rows = orders.data?.pages.flatMap((p) => p.items) ?? [];
@@ -76,7 +85,10 @@ export default function OrdersPage() {
     const when =
       OPEN.includes(o.status) && o.deliveryDate
         ? `for ${formatDate(o.deliveryDate, tz)}`
-        : tab === 'today'
+        : tab === 'delivered' && o.deliveryDate
+          ? // A delivered order's date is when it was delivered.
+            `delivered ${formatTime(o.deliveryDate, tz)}`
+          : tab === 'today'
           ? formatTime(o.orderDate, tz)
           : formatDateTime(o.orderDate, tz);
     // Early in the line: on a narrow phone the end gets cut off.
@@ -113,6 +125,7 @@ export default function OrdersPage() {
                     { value: 'today', label: 'Today' },
                     { value: 'open', label: 'Pending' },
                     { value: 'week', label: 'This week' },
+                    { value: 'delivered', label: 'Delivered' },
                     { value: 'all', label: 'All' },
                   ]
                 : [
@@ -137,7 +150,7 @@ export default function OrdersPage() {
         ) : rows.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="size-6" />}
-            title={debounced ? 'No matching orders' : tab === 'today' ? 'No orders today' : tab === 'open' ? 'Nothing pending' : 'No orders yet'}
+            title={debounced ? 'No matching orders' : tab === 'today' ? 'No orders today' : tab === 'open' ? 'Nothing pending' : tab === 'delivered' ? 'Nothing delivered yet today' : 'No orders yet'}
             action={
               <Link to="/orders/new" className="inline-flex h-11 items-center rounded-xl bg-brand-700 px-4 font-semibold text-white">
                 {isSupplier ? 'Create order' : 'Order water'}

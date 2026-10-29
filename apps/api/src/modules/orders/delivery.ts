@@ -170,7 +170,7 @@ export async function recordDelivery(tx: Tx, auth: OperatorContext, a: RecordDel
  * Re-derives an order's billed amount and status from everything delivered so far, so that
  * order.total always equals the net of its SALE/DISCOUNT ledger entries.
  */
-export async function settleOrderTotals(tx: Tx, orderId: string, extraDiscount: Minor, at: Date): Promise<void> {
+export async function settleOrderTotals(tx: Tx, orderId: string, extraDiscount: Minor, at: Date, closeShort = false): Promise<void> {
   const order = await tx.order.findUniqueOrThrow({
     where: { id: orderId },
     include: { items: true, deliveries: { include: { items: true } } },
@@ -188,7 +188,8 @@ export async function settleOrderTotals(tx: Tx, orderId: string, extraDiscount: 
     0,
   );
   const discount = decToMinor(order.discount) + extraDiscount;
-  const complete = order.items.every((i) => (delivered.get(i.productId) ?? 0) >= i.quantity);
+  // Delivered in full, or the client took fewer and wants no more: nothing left to deliver.
+  const complete = closeShort || order.items.every((i) => (delivered.get(i.productId) ?? 0) >= i.quantity);
 
   await tx.order.update({
     where: { id: orderId },

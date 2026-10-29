@@ -120,12 +120,13 @@ describe('sales report', () => {
     await backdate(b, new Date('2026-09-30T17:00:00Z'));
 
     const daily = (await biz.client.get('/api/reports/sales?from=2026-09-29&to=2026-10-01')).json();
+    const none = { CASH: '0.00', UPI: '0.00', BANK_TRANSFER: '0.00', OTHER: '0.00' };
     expect(daily.rows).toEqual([
-      { period: '2026-09-29', deliveries: 0, cans: 0, sales: '0.00', collected: '0.00', duesChange: '0.00' },
-      { period: '2026-09-30', deliveries: 1, cans: 2, sales: '100.00', collected: '0.00', duesChange: '100.00' },
-      { period: '2026-10-01', deliveries: 1, cans: 4, sales: '200.00', collected: '100.00', duesChange: '100.00' },
+      { period: '2026-09-29', deliveries: 0, cans: 0, sales: '0.00', collected: '0.00', byMethod: none, duesChange: '0.00' },
+      { period: '2026-09-30', deliveries: 1, cans: 2, sales: '100.00', collected: '0.00', byMethod: none, duesChange: '100.00' },
+      { period: '2026-10-01', deliveries: 1, cans: 4, sales: '200.00', collected: '100.00', byMethod: { ...none, CASH: '100.00' }, duesChange: '100.00' },
     ]);
-    expect(daily.totals).toEqual({ deliveries: 2, cans: 6, sales: '300.00', collected: '100.00', duesChange: '200.00' });
+    expect(daily.totals).toEqual({ deliveries: 2, cans: 6, sales: '300.00', collected: '100.00', byMethod: { ...none, CASH: '100.00' }, duesChange: '200.00' });
 
     const monthly = (await biz.client.get('/api/reports/sales?from=2026-09-01&to=2026-10-31&groupBy=month')).json();
     expect(monthly.rows.map((r: { period: string; sales: string }) => [r.period, r.sales])).toEqual([
@@ -142,7 +143,30 @@ describe('sales report', () => {
     await biz.client.post(`/api/payments/${payment.id}/reverse`, { reason: 'Bounced UPI' });
 
     const r = (await biz.client.get(`/api/reports/sales?from=${today()}&to=${today()}`)).json();
-    expect(r.totals).toEqual({ deliveries: 1, cans: 5, sales: '250.00', collected: '0.00', duesChange: '250.00' });
+    expect(r.totals).toEqual({
+      deliveries: 1,
+      cans: 5,
+      sales: '250.00',
+      collected: '0.00',
+      byMethod: { CASH: '0.00', UPI: '0.00', BANK_TRANSFER: '0.00', OTHER: '0.00' },
+      duesChange: '250.00',
+    });
+  });
+
+  it('splits what was collected by payment method, adding up to the total', async () => {
+    await quickSale(biz.storeId, 4, '200'); // cash
+    await biz.client.post('/api/orders/quick-sale', sale(biz.storeId, [{ productId: biz.canId, quantity: 2 }], { amount: '100', method: 'UPI' }));
+    await biz.client.post('/api/payments', { clientId: crypto.randomUUID(), storeId: biz.storeId, amount: '75', method: 'BANK_TRANSFER' });
+    const wrong = await biz.client.post('/api/payments', { clientId: crypto.randomUUID(), storeId: biz.storeId, amount: '40', method: 'UPI' });
+    await biz.client.post(`/api/payments/${wrong.json().payment.id}/reverse`, { reason: 'Entered twice' });
+
+    const r = (await biz.client.get(`/api/reports/sales?from=${today()}&to=${today()}`)).json();
+    const day = r.rows.at(-1);
+    expect(day.byMethod).toEqual({ CASH: '200.00', UPI: '100.00', BANK_TRANSFER: '75.00', OTHER: '0.00' });
+    expect(day.collected).toBe('375.00');
+    expect(r.totals.byMethod).toEqual(day.byMethod);
+    const sum = Object.values(day.byMethod as Record<string, string>).reduce((s, v) => s + toMinor(v), 0);
+    expect(sum).toBe(toMinor(day.collected));
   });
 });
 

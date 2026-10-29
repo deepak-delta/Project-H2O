@@ -30,6 +30,14 @@ export function olderThan<K extends string>(field: K, cursor: Cursor | null) {
   } as Record<string, unknown>;
 }
 
+/** Prisma `where` fragment selecting rows strictly newer than the cursor (oldest-first lists). */
+export function newerThan<K extends string>(field: K, cursor: Cursor | null) {
+  if (!cursor) return {};
+  return {
+    OR: [{ [field]: { gt: cursor.at } }, { [field]: cursor.at, id: { gt: cursor.id } }],
+  } as Record<string, unknown>;
+}
+
 /** Fetch `limit + 1` rows, then call this to split off the next cursor. */
 export function toPage<T, R>(
   rows: T[],

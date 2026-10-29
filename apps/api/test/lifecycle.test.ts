@@ -90,6 +90,20 @@ describe('delivering an order', () => {
     expect((await biz.client.get('/api/orders')).json().items.find((o: { id: string }) => o.id === next.id).totalQuantity).toBe(8);
   });
 
+  it('fewer cans than ordered can close the order: nothing stays pending', async () => {
+    const order = await placeOrder(10);
+    const res = await deliver(order.id, 7, { closeOrder: true });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().order).toMatchObject({ status: 'DELIVERED', total: '350.00' });
+    expect(res.json().order.items[0]).toMatchObject({ quantity: 10, delivered: 7 });
+    expect(await ledgerNetForOrder(order.id)).toBe('350.00');
+    const pending = (await biz.client.get('/api/orders?status=OPEN')).json<{ items: { id: string }[] }>();
+    expect(pending.items.map((o) => o.id)).not.toContain(order.id);
+    // Without it, the rest stays pending as before.
+    const other = await placeOrder(10);
+    expect((await deliver(other.id, 7)).json().order.status).toBe('PARTIALLY_DELIVERED');
+  });
+
   it('partial delivery bills only what arrived, then completes', async () => {
     const order = await placeOrder(10);
     const first = await deliver(order.id, 6);
@@ -215,5 +229,31 @@ describe('payment reversal', () => {
     const paid = await biz.client.post('/api/payments', { clientId: crypto.randomUUID(), storeId: biz.storeId, amount: '100', method: 'CASH' });
     const res = await biz.client.post(`/api/payments/${paid.json().payment.id}/reverse`, { reason: '' });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('order lists', () => {
+  it('pending can be listed first-added first, across pages', async () => {
+    const ids: string[] = [];
+    for (let n = 0; n < 5; n++) ids.push((await placeOrder(1 + n)).id);
+    const page1 = (await biz.client.get('/api/orders?status=OPEN&sort=oldest&limit=3')).json<{ items: { id: string }[]; nextCursor: string }>();
+    const page2 = (await biz.client.get(`/api/orders?status=OPEN&sort=oldest&limit=3&cursor=${page1.nextCursor}`)).json<{ items: { id: string }[] }>();
+    expect([...page1.items, ...page2.items].map((o) => o.id)).toEqual(ids);
+    // Default stays newest first.
+    const newest = (await biz.client.get('/api/orders?status=OPEN')).json<{ items: { id: string }[] }>();
+    expect(newest.items.map((o) => o.id)).toEqual([...ids].reverse());
+  });
+
+  it('delivered today: orders with a delivery made today only', async () => {
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    const done = await placeOrder(3);
+    await deliver(done.id, 3);
+    const part = await placeOrder(5);
+    await deliver(part.id, 2);
+    await placeOrder(4); // not delivered
+    const res = (await biz.client.get(`/api/orders?deliveredOn=${day}`)).json<{ items: { id: string }[] }>();
+    expect(res.items.map((o) => o.id).sort()).toEqual([done.id, part.id].sort());
+    const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(Date.now() - 864e5));
+    expect((await biz.client.get(`/api/orders?deliveredOn=${yesterday}`)).json().items).toEqual([]);
   });
 });

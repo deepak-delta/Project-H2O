@@ -74,6 +74,7 @@ function DeliverForm({ order, store }: { order: OrderDto; store: StoreDetail }) 
       title={`Deliver #${order.orderNumber} · ${store.name}`}
       back={true}
       top={<Destination address={store.address ?? order.storeAddress} mapLink={store.mapLink ?? order.storeMapLink} />}
+      askWhenShort
       lines={order.items.map((i) => ({
         productId: i.productId,
         name: i.productName,

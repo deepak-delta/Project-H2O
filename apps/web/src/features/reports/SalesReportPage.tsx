@@ -1,4 +1,4 @@
-import { addDays, startOfMonth, zonedDateKey } from '@wd/shared';
+import { addDays, PAYMENT_METHODS, startOfMonth, zonedDateKey, type PaymentMethod } from '@wd/shared';
 import { useSearchParams } from 'react-router';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
 import { Card, ListCard, ListRow } from '../../components/ui/Card';
@@ -10,6 +10,7 @@ import { Stat } from '../../components/ui/Stat';
 import { useMoney, useTimezone } from '../../hooks/useMoney';
 import { errorMessage } from '../../services/api';
 import { downloadCsv } from '../../utils/csv';
+import { METHOD_LABEL } from '../cashflow/labels';
 import { useSalesReport } from './api';
 import { CsvButton, formatPeriod } from './ReportBits';
 
@@ -32,9 +33,15 @@ export default function SalesReportPage() {
     report.data &&
     downloadCsv(
       `sales-${groupBy}-${from}-to-${to}.csv`,
-      [groupBy === 'day' ? 'Date' : 'Month', 'Deliveries', 'Cans delivered', 'Sales', 'Collected', 'Change in dues'],
-      report.data.rows.map((r) => [r.period, r.deliveries, r.cans, r.sales, r.collected, r.duesChange]),
+      [groupBy === 'day' ? 'Date' : 'Month', 'Deliveries', 'Cans delivered', 'Sales', 'Collected', ...PAYMENT_METHODS.map((m) => METHOD_LABEL[m]), 'Change in dues'],
+      report.data.rows.map((r) => [r.period, r.deliveries, r.cans, r.sales, r.collected, ...PAYMENT_METHODS.map((m) => r.byMethod[m]), r.duesChange]),
     );
+
+  /** "Cash ₹500 · UPI ₹300": only the ways money actually came in. */
+  const methodsLine = (byMethod: Record<PaymentMethod, string>) =>
+    PAYMENT_METHODS.filter((m) => byMethod[m] !== '0.00')
+      .map((m) => `${METHOD_LABEL[m]} ${format(byMethod[m])}`)
+      .join(' · ');
 
   return (
     <>
@@ -72,12 +79,23 @@ export default function SalesReportPage() {
                 hint="Sales not yet paid"
               />
             </Card>
+            <section aria-label="Collected by payment method">
+              <Card className="grid grid-cols-4 gap-1 p-2">
+                {PAYMENT_METHODS.map((m) => (
+                  <div key={m} className="min-w-0 rounded-xl px-2 py-2 text-center">
+                    <p className="text-[12px] text-muted">{METHOD_LABEL[m]}</p>
+                    <p className="truncate text-[15px] font-semibold text-ink tabular">{format(report.data.totals.byMethod[m])}</p>
+                  </div>
+                ))}
+              </Card>
+            </section>
             <ListCard>
               {[...report.data.rows].reverse().map((r) => (
                 <ListRow
                   key={r.period}
                   title={formatPeriod(r.period)}
                   subtitle={`${r.cans} cans · collected ${format(r.collected)}`}
+                  note={r.collected !== '0.00' ? <span className="text-muted">{methodsLine(r.byMethod)}</span> : undefined}
                   trailing={<span className={`font-semibold tabular ${r.sales === '0.00' ? 'text-muted' : 'text-ink'}`}>{format(r.sales)}</span>}
                 />
               ))}

@@ -35,6 +35,8 @@ export interface DeliveryValues {
   /** `unitPrice` only for products the store had no price for: it becomes the store's price. */
   items: { productId: string; quantity: number; emptyCollected: number; damagedCollected: number; damageChargeEach?: string; unitPrice?: string }[];
   payment: { amount: string; method: PaymentMethod };
+  /** Fewer cans than ordered and the client wants no more: the order is complete. */
+  closeOrder?: boolean;
 }
 
 /** Worked out on the phone, so a sale saved offline can still be confirmed to the user. */
@@ -54,6 +56,11 @@ interface DeliveryFormProps {
   headerAction?: ReactNode;
   /** Shown above the form, e.g. the owner's "Deliver now / For later" switch. */
   top?: ReactNode;
+  /**
+   * Delivering an order placed earlier (lines prefilled with what's left): when fewer cans go
+   * out, ask whether that closes the order or the rest comes later.
+   */
+  askWhenShort?: boolean;
   pending: boolean;
   error: string | null;
   onSubmit: (values: DeliveryValues, totals: DeliveryTotals) => void;
@@ -63,7 +70,7 @@ interface DeliveryFormProps {
  * Quantities → empties → payment → confirm, on one screen with a sticky confirm button.
  * Used for quick sales and for delivering orders that were placed earlier.
  */
-export function DeliveryForm({ store, lines, title, back, headerAction, top, pending, error, onSubmit }: DeliveryFormProps) {
+export function DeliveryForm({ store, lines, title, back, headerAction, top, askWhenShort, pending, error, onSubmit }: DeliveryFormProps) {
   const format = useMoney();
   const [quantities, setQuantities] = useState<Record<string, number>>(() => Object.fromEntries(lines.map((l) => [l.productId, l.initialQty])));
   const [empties, setEmpties] = useState<Record<string, number>>({});
@@ -82,6 +89,8 @@ export function DeliveryForm({ store, lines, title, back, headerAction, top, pen
     apply(value);
   };
   const [newPrices, setNewPrices] = useState<Record<string, string>>({});
+  // Default: the client took what they wanted, so nothing stays pending.
+  const [closeShort, setCloseShort] = useState(true);
 
   const heldBy = useMemo(() => new Map(store.cans.map((c) => [c.productId, c.quantity])), [store.cans]);
   const newPriceValid = (productId: string) => isMoneyString(newPrices[productId] ?? '') && toMinor(newPrices[productId] ?? '0') > 0;
@@ -99,6 +108,8 @@ export function DeliveryForm({ store, lines, title, back, headerAction, top, pen
   const balanceMinor = toMinor(store.balance);
   const newBalanceMinor = balanceMinor + totalMinor - paidMinor;
   const totalCans = Object.values(quantities).reduce((a, b) => a + b, 0);
+  const orderedCans = lines.reduce((a, l) => a + l.initialQty, 0);
+  const short = Boolean(askWhenShort) && totalCans > 0 && lines.some((l) => (quantities[l.productId] ?? 0) < l.initialQty);
   const overLimit = store.creditLimit !== null && newBalanceMinor > toMinor(store.creditLimit) && newBalanceMinor > balanceMinor;
   const returnable = lines.filter((l) => l.isReturnable && ((quantities[l.productId] ?? 0) > 0 || (heldBy.get(l.productId) ?? 0) > 0));
   const collected = (productId: string) => (empties[productId] ?? 0) + (damaged[productId] ?? 0);
@@ -125,6 +136,7 @@ export function DeliveryForm({ store, lines, title, back, headerAction, top, pen
             ...(l.unitPrice === null && (quantities[l.productId] ?? 0) > 0 ? { unitPrice: newPrices[l.productId] } : {}),
           })),
         payment: { amount: fromMinor(paidMinor), method },
+        ...(short ? { closeOrder: closeShort } : {}),
       },
       {
         total: fromMinor(totalMinor),
@@ -173,6 +185,25 @@ export function DeliveryForm({ store, lines, title, back, headerAction, top, pen
                 ) : null}
               </div>
             ))}
+            {short ? (
+              <div className="flex flex-col gap-2 border-t border-line pt-4">
+                <p className="text-[15px] font-medium text-ink">
+                  Ordered {orderedCans}, delivering {totalCans}. The other {orderedCans - totalCans}…
+                </p>
+                <Segmented
+                  label="The cans not delivered"
+                  value={closeShort ? 'close' : 'later'}
+                  onChange={(v) => setCloseShort(v === 'close')}
+                  options={[
+                    { value: 'close', label: 'Not needed' },
+                    { value: 'later', label: 'Deliver later' },
+                  ]}
+                />
+                <p className="text-sm text-muted">
+                  {closeShort ? 'The order is marked delivered; nothing stays pending.' : 'The order stays pending for the rest.'}
+                </p>
+              </div>
+            ) : null}
           </Card>
         </section>
 

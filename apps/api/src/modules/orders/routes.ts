@@ -18,7 +18,7 @@ import { ownedBy, requireAuth, requireOperator, requireOwnerOrStore, requireSupp
 import { notFound, validationError } from '../../lib/errors';
 import { businessToday, staffOrderWhere } from '../staff/scope';
 import { getBusinessSettings } from '../../lib/business';
-import { decodeCursor, olderThan, toPage } from '../../lib/pagination';
+import { decodeCursor, newerThan, olderThan, toPage } from '../../lib/pagination';
 import { parse } from '../../lib/validate';
 import type { Prisma } from '../../generated/prisma/client';
 import { loadOrderDto, orderListInclude, toOrderListItem } from './order-dto';
@@ -52,6 +52,10 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
         status: z.union([z.enum(ORDER_STATUSES), z.literal('OPEN')]).optional(),
         storeId: z.string().optional(),
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        /** Orders with a delivery made on this day (business timezone). */
+        deliveredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        /** 'oldest': first added at the top (Pending, delivered in turn). */
+        sort: z.enum(['newest', 'oldest']).default('newest'),
         search: z.string().trim().max(60).optional(),
         cursor: z.string().optional(),
         limit: z.coerce.number().int().min(1).max(100).default(30),
@@ -66,10 +70,16 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
     if (q.storeId && auth.role === 'SUPPLIER') where.storeId = q.storeId;
     if (q.status === 'OPEN') where.status = { in: [...OPEN_STATUSES] };
     else if (q.status) where.status = q.status;
-    if (q.date) {
+    if (q.date || q.deliveredOn) {
       const { timezone } = await getBusinessSettings(db, auth.supplierId);
-      const range = zonedDayRangeForKey(q.date, timezone);
-      where.orderDate = { gte: range.start, lt: range.end };
+      if (q.date) {
+        const range = zonedDayRangeForKey(q.date, timezone);
+        where.orderDate = { gte: range.start, lt: range.end };
+      }
+      if (q.deliveredOn) {
+        const range = zonedDayRangeForKey(q.deliveredOn, timezone);
+        where.deliveries = { some: { deliveredAt: { gte: range.start, lt: range.end } } };
+      }
     }
     if (q.search) {
       const number = /^#?(\d{1,9})$/.exec(q.search)?.[1];
@@ -79,10 +89,12 @@ export function registerOrderRoutes(app: FastifyInstance, { db, notifier }: Serv
       ];
     }
 
+    const oldest = q.sort === 'oldest';
+    const cursor = decodeCursor(q.cursor);
     const rows = await db.order.findMany({
-      where: { AND: [where, olderThan('orderDate', decodeCursor(q.cursor))] },
+      where: { AND: [where, oldest ? newerThan('orderDate', cursor) : olderThan('orderDate', cursor)] },
       include: orderListInclude,
-      orderBy: [{ orderDate: 'desc' }, { id: 'desc' }],
+      orderBy: oldest ? [{ orderDate: 'asc' }, { id: 'asc' }] : [{ orderDate: 'desc' }, { id: 'desc' }],
       take: q.limit + 1,
     });
     return toPage(rows, q.limit, (r) => ({ at: r.orderDate, id: r.id }), toOrderListItem);

@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { Analytics } from '@vercel/analytics/react';
 import { CircleAlert, WifiOff } from 'lucide-react';
 import { QaBadge } from './components/layout/QaBadge';
 import { lazy, Suspense, type ReactElement, type ReactNode } from 'react';
@@ -248,6 +249,7 @@ export function App() {
           <ShellUpdate />
         </Suspense>
       ) : null}
+      <Analytics />
     </PersistQueryClientProvider>
   );
 }

@@ -41,7 +41,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
         navigateFallback: '/index.html',
         // API responses hold private data and are never cached by the service worker.
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/_vercel\//],
         cleanupOutdatedCaches: true,
         // Push and notification-tap handlers live in a small hand-written script.
         importScripts: ['push-sw.js'],

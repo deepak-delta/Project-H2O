@@ -2,6 +2,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { CircleAlert, WifiOff } from 'lucide-react';
 import { QaBadge } from './components/layout/QaBadge';
+import { VercelInsights } from './components/layout/VercelInsights';
 import { lazy, Suspense, type ReactElement, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation } from 'react-router';
 import { AppShell } from './components/layout/AppShell';
@@ -238,6 +239,7 @@ export function App() {
       onSuccess={() => void queryClient.invalidateQueries()}
     >
       <QaBadge />
+      <VercelInsights />
       <OfflineBanner />
       <RouterProvider router={router} />
       <Toaster />

@@ -30,6 +30,9 @@ if (process.env.VERCEL_ENV === 'production' || isQa) {
 }
 // The web app shows a "QA" badge when built for the QA environment.
 if (isQa) process.env.VITE_APP_ENV = 'qa';
+// Vercel Web Analytics and Speed Insights: only in builds that Vercel serves (their scripts
+// live at /_vercel/… on the deployment itself, not on local or test servers).
+process.env.VITE_VERCEL_INSIGHTS = '1';
 
 // 2. Static PWA
 run('npm run build -w @wd/web');

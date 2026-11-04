@@ -18,6 +18,8 @@ import { ApiError, setUnauthenticatedHandler } from './services/api';
 const LoginPage = lazy(() => import('./features/auth/LoginPage'));
 const SignupPage = lazy(() => import('./features/auth/SignupPage'));
 const ForgotPinPage = lazy(() => import('./features/auth/ForgotPinPage'));
+const PrivacyPage = lazy(() => import('./features/legal/PrivacyPage'));
+const TermsPage = lazy(() => import('./features/legal/TermsPage'));
 const SecurityPage = lazy(() => import('./features/settings/SecurityPage'));
 const RecoverySetupPage = lazy(() => import('./features/settings/RecoverySetupPage'));
 const MorePage = lazy(() => import('./pages/MorePage'));
@@ -159,6 +161,23 @@ const router = createBrowserRouter([
           <SignupPage />
         </Suspense>
       </SessionGate>
+    ),
+  },
+  // Readable with or without a login (sign-up screen, app-store listings).
+  {
+    path: '/privacy',
+    element: (
+      <Suspense fallback={<PageSpinner />}>
+        <PrivacyPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/terms',
+    element: (
+      <Suspense fallback={<PageSpinner />}>
+        <TermsPage />
+      </Suspense>
     ),
   },
   {

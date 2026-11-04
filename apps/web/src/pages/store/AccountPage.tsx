@@ -3,6 +3,7 @@ import { Bell, ShieldCheck } from 'lucide-react';
 import { PageBody, PageHeader } from '../../components/layout/PageHeader';
 import { Card, ListCard, ListRow } from '../../components/ui/Card';
 import { LogoutButton } from '../../features/auth/LogoutButton';
+import { LegalMenu } from '../../features/legal/LegalMenu';
 import { useSession } from '../../features/auth/session';
 
 export default function AccountPage() {
@@ -30,6 +31,7 @@ export default function AccountPage() {
             leading={<ShieldCheck className="size-5 text-brand-700" aria-hidden />}
           />
         </ListCard>
+        <LegalMenu />
         <LogoutButton />
       </PageBody>
     </>

@@ -123,6 +123,15 @@ export default function LoginPage() {
           </Link>
         </p>
         <p>Clients: ask your water supplier for your login.</p>
+        <p className="text-xs">
+          <Link to="/privacy" className="text-muted underline">
+            Privacy policy
+          </Link>{' '}
+          ·{' '}
+          <Link to="/terms" className="text-muted underline">
+            Terms
+          </Link>
+        </p>
       </div>
     </AuthLayout>
   );

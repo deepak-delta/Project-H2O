@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { formatPhone, signupSchema } from '@wd/shared';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
+import { LegalLinks } from '../legal/LegalLayout';
 import { Link } from 'react-router';
 import { z } from 'zod';
 import { Button } from '../../components/ui/Button';
@@ -136,6 +137,9 @@ export default function SignupPage() {
                 Create account
               </Button>
             </div>
+            <p className="text-center text-sm text-muted">
+              By creating an account you agree to the <LegalLinks />.
+            </p>
           </>
         )}
       </form>
